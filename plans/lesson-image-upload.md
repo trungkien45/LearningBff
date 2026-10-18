@@ -1,64 +1,49 @@
-# Plan: Upload ảnh trong bài học
+# Plan: Upload ảnh trong bài học (Đã hoàn thành)
 
 ## Mục tiêu
 
 Cho phép giáo viên chèn ảnh vào nội dung bài học. Ảnh được lưu riêng tư trong file/blob storage; database lưu metadata và nội dung bài học giữ tham chiếu đến ảnh. Backend kiểm tra quyền mỗi lần upload hoặc xem ảnh.
 
-## Thiết kế đề xuất
+## Thiết kế đã chốt và triển khai
 
-- Hỗ trợ nhiều ảnh trong một bài học.
-- Không lưu bytes ảnh trong database.
-- Tạo metadata ảnh liên kết với `Lesson`, gồm mã ảnh, `LessonId`, tên blob, loại nội dung và kích thước.
-- Lưu file bằng blob/file storage riêng tư. Dự án đã gọi cấu hình ABP Blob Storing trong `LearningBff/Data/LearningBffDbContext.cs`; cần kiểm tra provider và cấu hình thực tế trước khi triển khai.
-- Dùng `Lesson.Content` để lưu nội dung bài học và tham chiếu đến ảnh được chèn từ trình soạn thảo.
+- **Cơ chế lưu trữ:** FileSystem Storage lưu file vào thư mục riêng tư ngoài `wwwroot` (`App_Data/LessonImages`), database chỉ lưu metadata (`AppLessonImages`).
+- **Giới hạn file:**
+  - Định dạng hỗ trợ: JPEG, JPG, PNG, WebP, GIF.
+  - Dung lượng tối đa: 5 MB/ảnh.
+  - Kiểm tra binary signatures (magic bytes) ở server để phòng chống giả mạo extension.
+- **Entity metadata `LessonImage`:**
+  - `Id` (Guid), `LessonId` (long, nullable cho quá trình tạo bài mới), `ChapterId` (long, nullable), `BlobName` (Guid-based an toàn), `OriginalFileName`, `ContentType`, `FileSize`.
+- **API Endpoints (`/api/lesson-images`):**
+  - `POST /api/lesson-images/upload`: Nhận multipart file cùng `chapterId` / `lessonId`. Kiểm tra quyền giảng viên của môn học hoặc Admin. Lưu file vào storage và tạo metadata, trả về `{ id, url, fileName, fileSize, contentType }`.
+  - `GET /api/lesson-images/{id}`: Kiểm tra quyền (Admin, Giáo viên phụ trách môn học, hoặc Học viên đang có đăng ký môn học hợp lệ). Trả về binary stream với `Content-Type` chuẩn và `enableRangeProcessing: true`.
+  - `DELETE /api/lesson-images/{id}`: Xóa blob vật lý và xóa metadata DB cho Giáo viên phụ trách hoặc Admin.
+- **Tự động đồng bộ và dọn dẹp file:**
+  - Khi thêm bài học mới: liên kết các ảnh vừa upload có ID nằm trong `Content` với `LessonId`.
+  - Khi cập nhật bài học: dọn dẹp các ảnh mồ côi (ảnh đã từng thuộc bài học nhưng bị gỡ khỏi `Content`).
+  - Khi xóa bài học: tự động xóa toàn bộ file blob của các ảnh thuộc bài học đó.
+  - Khi admin xóa môn học: tự động xóa toàn bộ file blob của tất cả các bài học thuộc môn học đó.
+- **Tích hợp trình soạn thảo Toast UI Editor:**
+  - Cấu hình `addImageBlobHook` tự động upload file qua API khi dán ảnh (Ctrl+V), kéo thả hoặc dùng nút chèn ảnh.
+  - Thay thế việc nhúng ảnh Base64 khổng lồ bằng đường dẫn API an toàn `![alt](/api/lesson-images/{id})`.
+  - Hiển thị responsive trên cả giao diện xem trước của giáo viên và giao diện học tập của học viên.
 
-## Các bước triển khai
+## Các file đã thay đổi & tạo mới
 
-1. **Chốt giới hạn upload**
-   - Chọn định dạng ảnh cho phép, ví dụ JPEG, PNG và WebP.
-   - Chọn dung lượng tối đa cho mỗi ảnh.
-   - Xác nhận có cần xóa ảnh riêng khỏi bài học hay không.
-
-2. **Dữ liệu và lưu trữ**
-   - Tạo entity/bảng metadata ảnh liên kết với bài học.
-   - Tạo migration cho metadata.
-   - Cấu hình blob storage riêng tư và cách tạo tên blob an toàn, duy nhất.
-
-3. **API**
-   - `POST` upload ảnh theo bài học, nhận multipart file; trả JSON metadata hoặc đường dẫn để trình soạn thảo chèn ảnh.
-   - `GET` ảnh theo mã ảnh; trả bytes cùng `Content-Type` phù hợp, không trả JSON.
-   - Có thể thêm `DELETE` để gỡ ảnh riêng, nếu phạm vi yêu cầu.
-
-4. **Phân quyền**
-   - Giáo viên chỉ được upload, xem hoặc xóa ảnh nếu được phân công môn chứa bài học.
-   - Học viên chỉ được xem ảnh nếu đang đăng ký môn chứa bài học và đăng ký còn hiệu lực.
-   - Admin được xem và quản lý theo quyền admin.
-   - Kiểm tra quyền trong backend ở từng request; không dùng URL blob công khai.
-
-5. **Tích hợp trình soạn thảo**
-   - Khi giáo viên chèn ảnh lúc tạo/sửa bài, trình soạn thảo upload file trước.
-   - Sau khi upload thành công, chèn tham chiếu đến API lấy ảnh vào `Lesson.Content`.
-   - Khi xem bài, ảnh được tải qua endpoint có kiểm tra quyền.
-
-6. **Dọn dẹp file**
-   - Xóa blob và metadata khi ảnh bị gỡ khỏi bài.
-   - Xóa ảnh liên quan khi xóa bài học.
-   - Khi admin xóa môn, xóa cả blob ảnh của các bài thuộc môn; cascade database không tự xóa file ngoài database.
-   - Có xử lý lỗi và khả năng dọn blob nếu thao tác database thất bại giữa chừng.
-
-7. **Kiểm thử**
-   - Giáo viên đúng môn upload/xem ảnh thành công.
-   - Học viên đã đăng ký xem được ảnh.
-   - Từ chối giáo viên môn khác, học viên chưa đăng ký hoặc đã hủy đăng ký.
-   - Từ chối file rỗng, định dạng không hỗ trợ, file vượt giới hạn; không chỉ tin vào đuôi file client gửi.
-   - Kiểm tra xóa ảnh, xóa bài và xóa môn có dọn blob tương ứng.
-
-## Tác động database
-
-Cần migration cho bảng metadata ảnh; không lưu nội dung ảnh dạng nhị phân trong database. Bản thân quyền xem dựa trên quan hệ bài học → chương → môn, đăng ký học viên và phân công giáo viên.
-
-## Cần xác nhận trước khi triển khai
-
-- Định dạng được phép và dung lượng tối đa mỗi ảnh.
-- Có cần nút/API xóa ảnh riêng hay chỉ xóa khi gỡ ảnh khỏi nội dung.
-- Cơ chế lưu trữ blob sẽ dùng trong các môi trường triển khai.
+1. **Entities & Database:**
+   - [`LessonImage.cs`](file:///c:/Users/KIEN/Desktop/Project/LearningBff/LearningBff/Entities/LessonImage.cs)
+   - [`Lesson.cs`](file:///c:/Users/KIEN/Desktop/Project/LearningBff/LearningBff/Entities/Lesson.cs)
+   - [`LearningBffDbContext.cs`](file:///c:/Users/KIEN/Desktop/Project/LearningBff/LearningBff/Data/LearningBffDbContext.cs)
+   - Migration: `20261018073448_Add_LessonImage_Entity.cs` (đã update database thành công).
+2. **Services & Storage:**
+   - [`ILessonImageStorageService.cs`](file:///c:/Users/KIEN/Desktop/Project/LearningBff/LearningBff/Services/LessonImages/ILessonImageStorageService.cs)
+   - [`LessonImageFileStorageService.cs`](file:///c:/Users/KIEN/Desktop/Project/LearningBff/LearningBff/Services/LessonImages/LessonImageFileStorageService.cs)
+   - [`LessonImageValidator.cs`](file:///c:/Users/KIEN/Desktop/Project/LearningBff/LearningBff/Services/LessonImages/LessonImageValidator.cs)
+   - [`ILessonImageAppService.cs`](file:///c:/Users/KIEN/Desktop/Project/LearningBff/LearningBff/Services/LessonImages/ILessonImageAppService.cs)
+   - [`LessonImageAppService.cs`](file:///c:/Users/KIEN/Desktop/Project/LearningBff/LearningBff/Services/LessonImages/LessonImageAppService.cs)
+   - [`LessonImageDto.cs`](file:///c:/Users/KIEN/Desktop/Project/LearningBff/LearningBff/Dtos/LessonImageDto.cs)
+   - [`LessonTeacherAppService.cs`](file:///c:/Users/KIEN/Desktop/Project/LearningBff/LearningBff/Services/Teacher/LessonTeacherAppService.cs) (tích hợp sync & delete)
+   - [`SubjectAdminAppService.cs`](file:///c:/Users/KIEN/Desktop/Project/LearningBff/LearningBff/Services/Admin/SubjectAdminAppService.cs) (tích hợp dọn blob khi xóa môn)
+3. **Controller & UI:**
+   - [`LessonImagesController.cs`](file:///c:/Users/KIEN/Desktop/Project/LearningBff/LearningBff/Controllers/LessonImagesController.cs)
+   - [`Curriculum.cshtml`](file:///c:/Users/KIEN/Desktop/Project/LearningBff/LearningBff/Pages/Teacher/Curriculum.cshtml) & [`Curriculum.cshtml.cs`](file:///c:/Users/KIEN/Desktop/Project/LearningBff/LearningBff/Pages/Teacher/Curriculum.cshtml.cs)
+   - [`Subject.cshtml`](file:///c:/Users/KIEN/Desktop/Project/LearningBff/LearningBff/Pages/Learning/Subject.cshtml)

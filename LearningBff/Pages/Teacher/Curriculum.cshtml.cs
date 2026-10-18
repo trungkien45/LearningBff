@@ -217,7 +217,7 @@ public class CurriculumModel : AbpPageModel
             return false;
         }
 
-        ErrorMessage = "Nội dung bài học vượt quá giới hạn 3 MB. Ảnh đang nhúng Base64 có thể làm dung lượng tăng nhanh; hãy xóa bớt ảnh hoặc nội dung rồi thử lại.";
+        ErrorMessage = "Nội dung bài học vượt quá giới hạn 3 MB. Vui lòng sử dụng tính năng tải ảnh của trình soạn thảo thay vì nhúng ảnh thô Base64.";
         return true;
     }
 }

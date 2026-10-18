@@ -636,6 +636,74 @@ namespace LearningBff.Migrations
                     b.ToTable("AppLessons", (string)null);
                 });
 
+            modelBuilder.Entity("LearningBff.Entities.LessonImage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BlobName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<long?>("ChapterId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTime>("CreationTime")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("CreationTime");
+
+                    b.Property<Guid?>("CreatorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("CreatorId");
+
+                    b.Property<Guid?>("DeleterId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("DeleterId");
+
+                    b.Property<DateTime?>("DeletionTime")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("DeletionTime");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDeleted");
+
+                    b.Property<DateTime?>("LastModificationTime")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("LastModificationTime");
+
+                    b.Property<Guid?>("LastModifierId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("LastModifierId");
+
+                    b.Property<long?>("LessonId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChapterId");
+
+                    b.HasIndex("LessonId");
+
+                    b.ToTable("AppLessonImages", (string)null);
+                });
+
             modelBuilder.Entity("LearningBff.Entities.Question", b =>
                 {
                     b.Property<long>("Id")
@@ -2798,6 +2866,23 @@ namespace LearningBff.Migrations
                     b.Navigation("Chapter");
                 });
 
+            modelBuilder.Entity("LearningBff.Entities.LessonImage", b =>
+                {
+                    b.HasOne("LearningBff.Entities.Chapter", "Chapter")
+                        .WithMany()
+                        .HasForeignKey("ChapterId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("LearningBff.Entities.Lesson", "Lesson")
+                        .WithMany("Images")
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Chapter");
+
+                    b.Navigation("Lesson");
+                });
+
             modelBuilder.Entity("LearningBff.Entities.Question", b =>
                 {
                     b.HasOne("LearningBff.Entities.Subject", "Subject")
@@ -3033,6 +3118,8 @@ namespace LearningBff.Migrations
 
             modelBuilder.Entity("LearningBff.Entities.Lesson", b =>
                 {
+                    b.Navigation("Images");
+
                     b.Navigation("LearningProgresses");
                 });
 

@@ -123,6 +123,14 @@
         border-radius: 0.5rem;
         overflow: visible;
     }
+    .toastui-editor-contents img,
+    #viewLessonContent img {
+        max-width: 100%;
+        height: auto;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        margin: 0.75rem 0;
+        display: block;
+    }
     .custom-modal-card.lesson-form-modal {
         display: flex;
         flex-direction: column;
@@ -636,7 +644,7 @@
 
                 <div class="custom-modal-body">
                     <div class="lesson-content-limit-alert alert alert-warning d-none" role="alert">
-                        Nội dung bài học vượt quá giới hạn 3 MB. Ảnh đang nhúng Base64 có thể làm dung lượng tăng nhanh; hãy xóa bớt ảnh hoặc nội dung rồi thử lại.
+                        Nội dung bài học vượt quá giới hạn 3 MB. Vui lòng sử dụng tính năng tải ảnh của trình soạn thảo thay vì nhúng ảnh thô Base64.
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Tiêu đề bài học <span class="text-danger">*</span></label>
@@ -675,7 +683,7 @@
 
                 <div class="custom-modal-body">
                     <div class="lesson-content-limit-alert alert alert-warning d-none" role="alert">
-                        Nội dung bài học vượt quá giới hạn 3 MB. Ảnh đang nhúng Base64 có thể làm dung lượng tăng nhanh; hãy xóa bớt ảnh hoặc nội dung rồi thử lại.
+                        Nội dung bài học vượt quá giới hạn 3 MB. Vui lòng sử dụng tính năng tải ảnh của trình soạn thảo thay vì nhúng ảnh thô Base64.
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Tiêu đề bài học <span class="text-danger">*</span></label>
@@ -756,10 +764,12 @@
         var createLessonEditor;
         var editLessonEditor;
         var lessonViewer;
-        var maxLessonContentLength = 3 * 1024 * 1024;
-        document.body.appendChild(document.getElementById('viewLessonModal'));
+        var viewLessonModalEl = document.getElementById('viewLessonModal');
+        if (viewLessonModalEl) {
+            document.body.appendChild(viewLessonModalEl);
+        }
 
-        function initializeLessonEditor(elementId, editor) {
+        function initializeLessonEditor(elementId, editor, getContextFn) {
             if (editor) {
                 return editor;
             }
@@ -769,7 +779,57 @@
                 height: 'min(58vh, 620px)',
                 initialEditType: 'wysiwyg',
                 previewStyle: 'vertical',
-                usageStatistics: false
+                usageStatistics: false,
+                hooks: {
+                    addImageBlobHook: async function (blob, callback) {
+                        if (blob.size > 5 * 1024 * 1024) {
+                            alert('Dung lượng ảnh vượt quá giới hạn cho phép (tối đa 5 MB).');
+                            return false;
+                        }
+
+                        var allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+                        if (blob.type && !allowedTypes.includes(blob.type.toLowerCase())) {
+                            alert('Định dạng ảnh không được hỗ trợ. Vui lòng chọn file JPEG, PNG, WebP hoặc GIF.');
+                            return false;
+                        }
+
+                        var formData = new FormData();
+                        formData.append('file', blob, blob.name || 'image.png');
+                        var ctx = typeof getContextFn === 'function' ? getContextFn() : {};
+                        if (ctx.chapterId) {
+                            formData.append('chapterId', ctx.chapterId);
+                        }
+                        if (ctx.lessonId) {
+                            formData.append('lessonId', ctx.lessonId);
+                        }
+
+                        try {
+                            var resp = await fetch('/api/lesson-images/upload', {
+                                method: 'POST',
+                                body: formData,
+                                headers: {
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                }
+                            });
+
+                            if (!resp.ok) {
+                                var errorMsg = 'Không thể tải ảnh lên.';
+                                try {
+                                    var errJson = await resp.json();
+                                    errorMsg = errJson.message || (errJson.error && errJson.error.message) || errorMsg;
+                                } catch (e) {}
+                                alert(errorMsg);
+                                return false;
+                            }
+
+                            var result = await resp.json();
+                            callback(result.url, result.fileName || 'image');
+                        } catch (err) {
+                            console.error('Lỗi khi tải ảnh lên:', err);
+                            alert('Đã xảy ra lỗi kết nối khi tải ảnh lên.');
+                        }
+                    }
+                }
             });
         }
 
@@ -880,7 +940,12 @@
             document.getElementById('createLessonChapterId').value = chapterId;
             document.getElementById('createLessonChapterTitle').textContent = 'Chương: ' + chapterName;
             openModal('createLessonModal');
-            createLessonEditor = initializeLessonEditor('createLessonContentEditor', createLessonEditor);
+            createLessonEditor = initializeLessonEditor('createLessonContentEditor', createLessonEditor, function () {
+                return {
+                    chapterId: document.getElementById('createLessonChapterId').value,
+                    lessonId: null
+                };
+            });
             createLessonEditor.setMarkdown('');
         }
 
@@ -890,7 +955,12 @@
                     document.getElementById('editLessonId').value = res.data.id;
                     document.getElementById('editLessonTitle').value = res.data.title;
                     openModal('editLessonModal');
-                    editLessonEditor = initializeLessonEditor('editLessonContentEditor', editLessonEditor);
+                    editLessonEditor = initializeLessonEditor('editLessonContentEditor', editLessonEditor, function () {
+                        return {
+                            chapterId: null,
+                            lessonId: document.getElementById('editLessonId').value
+                        };
+                    });
                     editLessonEditor.setMarkdown(res.data.content || '');
                 } else {
                     alert(res.message || 'Không thể tải chi tiết bài học.');
@@ -933,12 +1003,18 @@
             }
         }
 
-        document.getElementById('createLessonForm').addEventListener('submit', function (event) {
-            setLessonContentOnSubmit(this, createLessonEditor, document.getElementById('createLessonContent'), event);
-        });
+        var createLessonFormEl = document.getElementById('createLessonForm');
+        if (createLessonFormEl) {
+            createLessonFormEl.addEventListener('submit', function (event) {
+                setLessonContentOnSubmit(this, createLessonEditor, document.getElementById('createLessonContent'), event);
+            });
+        }
 
-        document.getElementById('editLessonForm').addEventListener('submit', function (event) {
-            setLessonContentOnSubmit(this, editLessonEditor, document.getElementById('editLessonContent'), event);
-        });
+        var editLessonFormEl = document.getElementById('editLessonForm');
+        if (editLessonFormEl) {
+            editLessonFormEl.addEventListener('submit', function (event) {
+                setLessonContentOnSubmit(this, editLessonEditor, document.getElementById('editLessonContent'), event);
+            });
+        }
     </script>
 }

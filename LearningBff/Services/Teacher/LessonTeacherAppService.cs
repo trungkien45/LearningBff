@@ -12,15 +12,18 @@ public class LessonTeacherAppService : TeacherBaseAppService
 {
     private readonly IRepository<Chapter, long> _chapterRepository;
     private readonly IRepository<Lesson, long> _lessonRepository;
+    private readonly Services.LessonImages.ILessonImageAppService _lessonImageAppService;
 
     public LessonTeacherAppService(
         IRepository<Subject, long> subjectRepository,
         IRepository<Chapter, long> chapterRepository,
         IRepository<Lesson, long> lessonRepository,
+        Services.LessonImages.ILessonImageAppService lessonImageAppService,
         ICurrentUser currentUser) : base(subjectRepository, currentUser)
     {
         _chapterRepository = chapterRepository;
         _lessonRepository = lessonRepository;
+        _lessonImageAppService = lessonImageAppService;
     }
     public async Task<(List<LessonDto> Lessons, int TotalCount)> GetLessonsOfChapterAsync(long chapterId, string searchName = "",
         int page = 1,
@@ -97,6 +100,7 @@ public class LessonTeacherAppService : TeacherBaseAppService
             ChapterId = chapterId
         };
         await _lessonRepository.InsertAsync(lesson, autoSave: true);
+        await _lessonImageAppService.SyncLessonImagesAsync(lesson.Id, lesson.Content, chapterId);
         return new LessonDto
         {
             Id = lesson.Id,
@@ -129,6 +133,7 @@ public class LessonTeacherAppService : TeacherBaseAppService
         lesson.Title = trimmedTitle;
         lesson.Content = input.Content?.Trim();
         await _lessonRepository.UpdateAsync(lesson, autoSave: true);
+        await _lessonImageAppService.SyncLessonImagesAsync(lesson.Id, lesson.Content, lesson.ChapterId);
         return new LessonDto
         {
             Id = lesson.Id,
@@ -148,6 +153,7 @@ public class LessonTeacherAppService : TeacherBaseAppService
         {
             throw new AbpAuthorizationException("Không tìm thấy bài học hoặc bạn không có quyền truy cập.");
         }
+        await _lessonImageAppService.DeleteLessonImagesAsync(lessonId);
         await _lessonRepository.DeleteAsync(lesson, autoSave: true);
         return lesson.Id;
     }

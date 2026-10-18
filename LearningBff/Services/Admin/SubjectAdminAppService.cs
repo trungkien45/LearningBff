@@ -18,15 +18,18 @@ public class SubjectAdminAppService : LearningBffAppService
     private readonly IRepository<Subject, long> _subjectRepository;
     private readonly IRepository<IdentityUser, Guid> _userRepository;
     private readonly SubjectAppService _subjectAppService;
+    private readonly Services.LessonImages.ILessonImageAppService _lessonImageAppService;
 
     public SubjectAdminAppService(
         IRepository<Subject, long> subjectRepository,
         IRepository<IdentityUser, Guid> userRepository,
-        SubjectAppService subjectAppService)
+        SubjectAppService subjectAppService,
+        Services.LessonImages.ILessonImageAppService lessonImageAppService)
     {
         _subjectRepository = subjectRepository;
         _userRepository = userRepository;
         _subjectAppService = subjectAppService;
+        _lessonImageAppService = lessonImageAppService;
     }
 
     /// <summary>
@@ -144,6 +147,7 @@ public class SubjectAdminAppService : LearningBffAppService
             .FirstOrDefaultAsync(s => s.Id == id)
             ?? throw new UserFriendlyException($"Không tìm thấy môn học với mã {id}.");
 
+        await _lessonImageAppService.DeleteSubjectImagesAsync(id);
         await _subjectRepository.DeleteAsync(subject, autoSave: true);
     }
 }

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.OpenApi;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using LearningBff.BackgroundWorkers;
 using LearningBff.Data;
 using LearningBff.Localization;
 using LearningBff.Menus;
@@ -29,6 +30,7 @@ using Volo.Abp.Caching;
 using Volo.Abp.FeatureManagement;
 using Volo.Abp.Identity;
 using Volo.Abp.Identity.Web;
+using Volo.Abp.BackgroundWorkers;
 using Volo.Abp.Uow;
 using Volo.Abp.Emailing;
 using Volo.Abp.Localization;
@@ -211,6 +213,8 @@ public class LearningBffModule : AbpModule
         {
             options.Conventions.AuthorizeFolder("/Admin", "AdminOnly");
         });
+
+        context.Services.AddTransient<Services.LessonImages.ILessonImageStorageService, Services.LessonImages.LessonImageFileStorageService>();
     }
 
     private void ConfigureHealthChecks(ServiceConfigurationContext context)
@@ -400,6 +404,12 @@ public class LearningBffModule : AbpModule
     {
         var app = context.GetApplicationBuilder();
         var env = context.GetEnvironment();
+
+        // Đăng ký background worker dọn dẹp ảnh orphan mỗi 24h
+        context.ServiceProvider
+            .GetRequiredService<IBackgroundWorkerManager>()
+            .AddAsync(context.ServiceProvider.GetRequiredService<OrphanImageCleanupWorker>())
+            .GetAwaiter().GetResult();
 
         // Xóa bundle cache để buộc ABP regenerate bundle mới mỗi lần deploy
         var bundleDir = Path.Combine(env.WebRootPath, "__bundles");

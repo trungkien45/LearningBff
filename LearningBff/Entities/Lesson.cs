@@ -9,5 +9,6 @@ namespace LearningBff.Entities
         public long ChapterId { get; set; }
         public Chapter Chapter { get; set; } = null!;
         public List<LearningProgress> LearningProgresses { get; set; } = [];
+        public List<LessonImage> Images { get; set; } = [];
     }
 }

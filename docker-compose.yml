@@ -10,7 +10,7 @@ services:
     volumes:
       - ./postgres-data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d LearningBff"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d LearningBff" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -21,7 +21,7 @@ services:
       context: .
       dockerfile: Dockerfile
     pull_policy: never
-    command: ["--migrate-database"]
+    command: [ "--migrate-database" ]
     environment:
       ConnectionStrings__Default: "Host=postgres;Port=5432;Database=LearningBff;Username=postgres;Password=postgres"
     depends_on:
@@ -39,9 +39,22 @@ services:
       App__SelfUrl: http://localhost:8080
       App__HealthCheckUrl: /health-status
       AuthServer__Authority: http://localhost:8080
+      # Thu muc luu anh bai hoc (ben trong container)
+      LessonImages__StoragePath: /app/App_Data/LessonImages
     ports:
       - "8080:8080"
+    volumes:
+      # Mount volume de anh khong bi mat khi container restart/redeploy
+      - lesson-images-data:/app/App_Data/LessonImages
     depends_on:
       db-migrator:
         condition: service_completed_successfully
     restart: unless-stopped
+
+volumes:
+  lesson-images-data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ./lesson_img
+      o: bind

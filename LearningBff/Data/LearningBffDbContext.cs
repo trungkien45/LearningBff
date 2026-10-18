@@ -41,6 +41,7 @@ public class LearningBffDbContext :
     public DbSet<ExamResultAnswer> ExamResultAnswers { get; set; }
     public DbSet<LearningProgress> LearningProgesses { get; set; }
     public DbSet<Lesson> Lessons { get; set; }
+    public DbSet<LessonImage> LessonImages { get; set; }
     public DbSet<Question> Questions { get; set; }
     public DbSet<Subject> Subjects { get; set; }
 
@@ -172,6 +173,18 @@ public class LearningBffDbContext :
             b.Property(x => x.Title).IsRequired();
             b.HasOne(x => x.Chapter).WithMany(x => x.Lessons).HasForeignKey(x => x.ChapterId).OnDelete(DeleteBehavior.Cascade);
             b.HasMany(x => x.LearningProgresses).WithOne(x => x.Lesson).HasForeignKey(x => x.LessonId).OnDelete(DeleteBehavior.Cascade);
+            b.HasMany(x => x.Images).WithOne(x => x.Lesson).HasForeignKey(x => x.LessonId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<LessonImage>(b =>
+        {
+            b.ToTable(DbTablePrefix + "LessonImages", DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.BlobName).IsRequired().HasMaxLength(256);
+            b.Property(x => x.OriginalFileName).IsRequired().HasMaxLength(512);
+            b.Property(x => x.ContentType).IsRequired().HasMaxLength(128);
+            b.HasOne(x => x.Lesson).WithMany(x => x.Images).HasForeignKey(x => x.LessonId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.Chapter).WithMany().HasForeignKey(x => x.ChapterId).OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<Question>(b =>
