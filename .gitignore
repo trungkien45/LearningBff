@@ -273,3 +273,7 @@ LearningBff/Logs/*
 # Use abp install-libs to restore.
 **/wwwroot/libs/*
 postgres-data
+
+# Lesson image uploads (local storage)
+lesson_img/*
+!lesson_img/.gitkeep
