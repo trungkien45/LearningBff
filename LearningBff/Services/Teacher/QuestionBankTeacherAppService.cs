@@ -227,6 +227,19 @@ public class QuestionBankTeacherAppService : TeacherBaseAppService
         {
             throw new UserFriendlyException("Tệp được chọn không phải là tệp Excel hợp lệ.");
         }
+                // Tạm thời nhánh 1 là import trắc nghiệm (Single/Multi) hiện tại, mai sẽ viết thêm nhánh 3 và 4
+        switch (importQuestionDto.QuestionType)
+        {
+            case 3:
+                throw new UserFriendlyException("Tính năng import câu hỏi tự luận đang được phát triển.");
+            case 4:
+                throw new UserFriendlyException("Tính năng import câu hỏi bán trắc nghiệm đang được phát triển.");
+            case 1:
+            default:
+                // Nhánh 1: Trắc nghiệm (Multiple Choice)
+                break;
+        }
+
         memoryStream.Position = 0;
         using var workbook = new XLWorkbook(memoryStream);
         var worksheet = workbook.Worksheet(1);
