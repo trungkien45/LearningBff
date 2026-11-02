@@ -1,6 +1,7 @@
 ﻿using ClosedXML.Excel;
 using LearningBff.Dtos;
 using LearningBff.Entities;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.IO.Compression;
 using System.Linq;
@@ -165,7 +166,7 @@ public class QuestionBankTeacherAppService : TeacherBaseAppService
         {
             throw new AbpAuthorizationException("Độ khó không hợp lệ.");
         }
-        if (input.Type < QuestionType.Single || input.Type > QuestionType.Mixed)
+        if (input.Type < QuestionType.Single || input.Type > QuestionType.Semi)
         {
             throw new AbpAuthorizationException("Loại câu hỏi không hợp lệ.");
         }
@@ -211,6 +212,7 @@ public class QuestionBankTeacherAppService : TeacherBaseAppService
             Order = question.Order,
         };
     }
+    [ApiExplorerSettings(IgnoreApi = true)]
     public async Task<ImportQuestionResultDto> ImportQuestion(
         ImportQuestionDto importQuestionDto,
         Func<ImportQuestionProgressDto, Task>? reportProgress = null,
@@ -227,18 +229,16 @@ public class QuestionBankTeacherAppService : TeacherBaseAppService
         {
             throw new UserFriendlyException("Tệp được chọn không phải là tệp Excel hợp lệ.");
         }
-        //TODO: Tạm thời nhánh 1 là import trắc nghiệm (Single/Multi) hiện tại, mai sẽ viết thêm nhánh 3 và 4
         switch (importQuestionDto.QuestionType)
         {
             case 3:
-                throw new UserFriendlyException("Tính năng import câu hỏi tự luận đang được phát triển.");
+                return await ImportEssayQuestionsAsync(importQuestionDto, reportProgress, memoryStream, cancellationToken);
             case 4:
-                throw new UserFriendlyException("Tính năng import câu hỏi bán trắc nghiệm đang được phát triển.");
+                return await ImportMultipleChoiceWithJustificationAsync(importQuestionDto, reportProgress, memoryStream, cancellationToken);
             case 1:
+                return await ImportMultipleChoiceQuestionsAsync(importQuestionDto, reportProgress, memoryStream, cancellationToken);
             default:
-                {
-                    return await ImportMultipleChoiceQuestionsAsync(importQuestionDto, reportProgress, memoryStream, cancellationToken);
-                }
+                throw new UserFriendlyException("Loại câu hỏi không hợp lệ.");
         }
     }
 
@@ -270,7 +270,7 @@ public class QuestionBankTeacherAppService : TeacherBaseAppService
         {
             throw new AbpAuthorizationException("Độ khó không hợp lệ.");
         }
-        if (input.Type < QuestionType.Single || input.Type > QuestionType.Mixed)
+        if (input.Type < QuestionType.Single || input.Type > QuestionType.Semi)
         {
             throw new AbpAuthorizationException("Loại câu hỏi không hợp lệ.");
         }
@@ -458,6 +458,19 @@ public class QuestionBankTeacherAppService : TeacherBaseAppService
         await _answerRepository.DeleteAsync(answer, autoSave: true);
         return answer.Id;
     }
+    private async Task<ImportQuestionResultDto> ImportMultipleChoiceWithJustificationAsync(ImportQuestionDto importQuestionDto, Func<ImportQuestionProgressDto, Task>? reportProgress, MemoryStream memoryStream, CancellationToken cancellationToken)
+    {
+
+        // TODO: Implement the logic for importing multiple choice questions with justification
+        throw new NotImplementedException();
+    }
+
+    private async Task<ImportQuestionResultDto> ImportEssayQuestionsAsync(ImportQuestionDto importQuestionDto, Func<ImportQuestionProgressDto, Task>? reportProgress, MemoryStream memoryStream, CancellationToken cancellationToken)
+    {
+        // TODO: Implement the logic for importing essay questions
+        throw new NotImplementedException();
+    }
+
     private async Task<ImportQuestionResultDto> ImportMultipleChoiceQuestionsAsync(ImportQuestionDto importQuestionDto, Func<ImportQuestionProgressDto, Task>? reportProgress, MemoryStream memoryStream, CancellationToken cancellationToken)
     {
         // Nhánh 1: Trắc nghiệm (Multiple Choice)

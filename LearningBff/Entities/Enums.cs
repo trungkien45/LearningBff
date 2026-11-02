@@ -4,8 +4,8 @@ public enum QuestionType
 {
     Single = 1,
     Multi  = 2,
-    Text = 3,
-    Mixed = 4
+    Essay = 3,
+    Semi = 4
 }
 
 public enum QuestionDifficulty

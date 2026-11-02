@@ -9,6 +9,7 @@ using Volo.Abp.AspNetCore.Mvc.UI.RazorPages;
 using LearningBff.Services.Teacher;
 using LearningBff.Dtos;
 using LearningBff.Entities;
+using Microsoft.AspNetCore.Http;
 
 namespace LearningBff.Pages.Teacher;
 
@@ -262,65 +263,69 @@ public class QuestionsModel : AbpPageModel
 
     public async Task<IActionResult> OnPostImportQuestionAsync(
         long subjectId,
-        Microsoft.AspNetCore.Http.IFormFile file,
+        IFormFile file,
         int questionType = 1,
         string? search = null,
         int currentPage = 1,
         CancellationToken cancellationToken = default)
     {
-        Response.ContentType = "text/event-stream";
-        Response.Headers["Cache-Control"] = "no-cache";
-        Response.Headers["X-Accel-Buffering"] = "no";
-        await Response.StartAsync(cancellationToken);
+        // Call the API Controller to handle import with SSE streaming
+        var form = new MultipartFormDataContent();
 
-        var latestProgress = new ImportQuestionProgressDto(
-            "processing",
-            0,
-            0,
-            0,
-            0,
-            0);
+        if (file != null && file.Length > 0)
+        {
+            form.Add(new StreamContent(file.OpenReadStream()), "File", file.FileName);
+        }
+
+        form.Add(new StringContent(subjectId.ToString()), "SubjectId");
+        form.Add(new StringContent(questionType.ToString()), "QuestionType");
+
         try
         {
-            await WriteSseEventAsync("started", new { message = "Đã tải tệp lên, bắt đầu đọc dữ liệu..." }, cancellationToken);
-            var result = await _questionBankTeacherAppService.ImportQuestion(new ImportQuestionDto
-            {
-                SubjectId = subjectId,
-                File = file,
-                QuestionType = questionType
-            }, async progress =>
-            {
-                latestProgress = progress;
-                await WriteSseEventAsync("progress", progress, cancellationToken);
-            }, cancellationToken);
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            using var client = new HttpClient();
 
-            await WriteSseEventAsync("complete", result, cancellationToken);
+            // Add authorization header if token exists
+            if (HttpContext.Request.Headers.ContainsKey("Authorization"))
+            {
+                client.DefaultRequestHeaders.Add("Authorization", 
+                    HttpContext.Request.Headers["Authorization"].ToString());
+            }
+
+            var response = await client.PostAsync(
+                $"{baseUrl}/api/app/question-bank-teacher/import-question",
+                form,
+                cancellationToken);
+
+            // Set response headers
+            Response.ContentType = response.Content.Headers.ContentType?.ToString() ?? "text/event-stream";
+            Response.Headers["Cache-Control"] = "no-cache";
+            Response.Headers["X-Accel-Buffering"] = "no";
+
+            if (response.IsSuccessStatusCode)
+            {
+                // Stream the response back to the client
+                await response.Content.CopyToAsync(Response.Body, cancellationToken);
+            }
+            else
+            {
+                await Response.WriteAsync(
+                    $"event: error\ndata: {{\"message\": \"API call failed with status {response.StatusCode}\"}}\n\n",
+                    cancellationToken);
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            await Response.WriteAsync(
+                $"event: error\ndata: {{\"message\": \"Error calling import API: {ex.Message}\"}}\n\n",
+                cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             // The browser disconnected or the user cancelled the import.
         }
-        catch (Exception ex)
-        {
-            await WriteSseEventAsync("error", new
-            {
-                message = ex.Message,
-                importedQuestions = latestProgress.ImportedQuestions,
-                errorCount = latestProgress.ErrorCount
-            }, cancellationToken);
-        }
 
         return new EmptyResult();
-    }
-
-    private async Task WriteSseEventAsync(string eventName, object data, CancellationToken cancellationToken)
-    {
-        var json = JsonSerializer.Serialize(data, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        });
-        await Response.WriteAsync($"event: {eventName}\ndata: {json}\n\n", cancellationToken);
-        await Response.Body.FlushAsync(cancellationToken);
     }
 
     public async Task<IActionResult> OnPostCreateAnswerAsync(

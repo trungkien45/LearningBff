@@ -414,7 +414,7 @@ public class ExamAppService : LearningBffAppService
                     });
                 }
             }
-            else if (question.Type == QuestionType.Text)
+            else if (question.Type == QuestionType.Essay)
             {
                 // Tự luận: Giáo viên xem và chấm sau
                 hasManualGradingQuestions = true;
@@ -424,7 +424,7 @@ public class ExamAppService : LearningBffAppService
                     IsGraded = false
                 });
             }
-            else if (question.Type == QuestionType.Mixed)
+            else if (question.Type == QuestionType.Semi)
             {
                 // Bán trắc nghiệm: học sinh chọn phương án + giải thích text, giáo viên chấm
                 hasManualGradingQuestions = true;
