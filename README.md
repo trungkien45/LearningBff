@@ -10,6 +10,35 @@
 - Entity Framework Core và PostgreSQL
 - Docker Compose (tùy chọn)
 
+## Tính năng nổi bật: Thi & Chấm thi đa hình thức
+
+Hệ thống hỗ trợ 4 loại câu hỏi linh hoạt, phân luồng làm bài và chấm điểm tự động / thủ công:
+
+1. **Trắc nghiệm 1 đáp án (Single Choice)**:
+   - Học viên chọn 1 đáp án đúng trong các phương án A, B, C, D...
+   - Hệ thống tự động chấm điểm và hiển thị kết quả ngay khi nộp bài.
+
+2. **Trắc nghiệm nhiều đáp án (Multi Choice)**:
+   - Học viên chọn nhiều đáp án đúng.
+   - Hệ thống so khớp toàn bộ đáp án đúng để tính điểm tự động.
+
+3. **Tự luận (Essay / Text)**:
+   - Học viên nhập nội dung trả lời trực tiếp dưới dạng văn bản (text area).
+   - Giáo viên có thể cấu hình **"Hướng dẫn chấm" (Grading Guide)** khi tạo câu hỏi để phục vụ quy chuẩn chấm thi.
+   - Khi nộp bài, đề thi chuyển sang trạng thái **"Chờ chấm" (Pending)**, ẩn điểm tổng và khóa lượt thi lại cho đến khi được giáo viên chấm.
+   - Giáo viên vào giao diện chấm bài của đề thi để đọc nội dung bài làm, chấm điểm và gửi lời nhận xét (feedback) cho từng câu.
+
+4. **Bán trắc nghiệm (Mixed)**:
+   - Kết hợp giữa việc chọn phương án trắc nghiệm và nhập đoạn văn giải trình, lý giải cho lựa chọn.
+   - Giáo viên đối chiếu phương án học viên đã chọn cùng phần giải thích để đánh giá, cho điểm và phản hồi chi tiết.
+
+### Quy trình phân luồng làm bài & Chấm điểm:
+- **Đề 100% trắc nghiệm**: Máy chấm điểm tự động, hiển thị ngay điểm số, trạng thái đạt/chưa đạt, đáp án đúng và lời giải thích.
+- **Đề có câu hỏi tự luận hoặc bán trắc nghiệm**:
+  - **Học viên**: Sau khi nộp bài, bài thi hiển thị trạng thái `Chờ chấm`. Học viên chưa xem điểm tổng và chưa được làm lại.
+  - **Giáo viên**: Mở danh sách bài thi đã nộp, xem chi tiết từng câu hỏi, nhập điểm số thành phần kèm nhận xét câu hỏi và nhận xét tổng thể.
+  - **Sau khi giáo viên chấm xong (`Graded`)**: Học viên sẽ xem được điểm chính thức, nhận xét của giáo viên, hướng dẫn chấm và được phép thi lại (nếu số lượt thi còn hiệu lực).
+
 ## Chạy bằng Docker Compose
 
 Yêu cầu đã cài Docker Desktop hoặc Docker Engine có Docker Compose.
