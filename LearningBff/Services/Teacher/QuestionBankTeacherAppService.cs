@@ -227,7 +227,7 @@ public class QuestionBankTeacherAppService : TeacherBaseAppService
         {
             throw new UserFriendlyException("Tệp được chọn không phải là tệp Excel hợp lệ.");
         }
-        // Tạm thời nhánh 1 là import trắc nghiệm (Single/Multi) hiện tại, mai sẽ viết thêm nhánh 3 và 4
+        //TODO: Tạm thời nhánh 1 là import trắc nghiệm (Single/Multi) hiện tại, mai sẽ viết thêm nhánh 3 và 4
         switch (importQuestionDto.QuestionType)
         {
             case 3:
@@ -236,215 +236,12 @@ public class QuestionBankTeacherAppService : TeacherBaseAppService
                 throw new UserFriendlyException("Tính năng import câu hỏi bán trắc nghiệm đang được phát triển.");
             case 1:
             default:
-            {
-                // Nhánh 1: Trắc nghiệm (Multiple Choice)
-                memoryStream.Position = 0;
-                using var workbook = new XLWorkbook(memoryStream);
-                var worksheet = workbook.Worksheet(1);
-
-                var result = new ImportQuestionResultDto
                 {
-                    ImportedQuestions = 0,
-                    Errors = new List<string>()
-                };
-                var rows = worksheet.RowsUsed().Skip(1).ToList();
-                result.TotalQuestions = rows.Count;
-                var processedRows = 0;
-                foreach (var row in rows)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    var rowNumber = row.RowNumber();
-
-                    async Task ReportProgressAsync()
-                    {
-                        processedRows++;
-                        if (reportProgress != null)
-                        {
-                            await reportProgress(new ImportQuestionProgressDto(
-                                "processing",
-                                processedRows,
-                                result.TotalQuestions,
-                                result.ImportedQuestions,
-                                result.Errors.Count,
-                                rowNumber));
-                        }
-                    }
-
-                    var question = row.Cell(1).GetString();
-                    var typeStr = row.Cell(2).GetString();
-                    if (string.IsNullOrWhiteSpace(question))
-                    {
-                        result.Errors.Add($"Dòng {rowNumber} không có tiêu đề câu hỏi.");
-                        await ReportProgressAsync();
-                        continue;
-                    }
-                    var type = typeStr switch
-                    {
-                        "1 đáp án" => QuestionType.Single,
-                        "nhiều đáp án" => QuestionType.Multi,
-                        _ => (QuestionType?)null
-                    };
-                    if (type == null)
-                    {
-                        result.Errors.Add($"Dòng {rowNumber} có kiểu câu hỏi không hợp lệ.");
-                        await ReportProgressAsync();
-                        continue;
-                    }
-                    var questionEntity = new Question
-                    {
-                        SubjectId = importQuestionDto.SubjectId,
-                        Type = type.Value,
-                        Difficulty = QuestionDifficulty.Medium, // Default difficulty, adjust as needed
-                        Title = question,
-                        DefaultScore = 1 // Default score, adjust as needed
-                    };
-                    var lastCell = row.LastCellUsed();
-                    if (lastCell == null || lastCell.Address.ColumnNumber < 3)
-                    {
-                        result.Errors.Add($"Dòng {rowNumber} không có đáp án nào.");
-                        await ReportProgressAsync();
-                        continue;
-                    }
-
-                    var correctCount = row.Cells(3, lastCell.Address.ColumnNumber)
-                        .Count(c => IsCorrectAnswerCell(c));
-
-                    if (questionEntity.Type == QuestionType.Single && correctCount != 1)
-                    {
-                        result.Errors.Add($"Dòng {rowNumber} là câu hỏi loại 'Một đáp án đúng' nhưng có {correctCount} đáp án đúng.");
-                        await ReportProgressAsync();
-                        continue;
-                    }
-
-                    if (correctCount == 0)
-                    {
-                        result.Errors.Add($"Dòng {rowNumber} không có đáp án đúng nào.");
-                        await ReportProgressAsync();
-                        continue;
-                    }
-
-                    for (int col = 3; col <= lastCell.Address.ColumnNumber; col++)
-                    {
-                        var cell = row.Cell(col);
-
-                        if (cell.IsEmpty())
-                            continue;
-
-                        var answerText = cell.GetString();
-                        if (string.IsNullOrWhiteSpace(answerText))
-                        {
-                            result.Errors.Add($"Dòng {rowNumber}, cột {col} có đáp án trống.");
-                            continue;
-                        }
-                        var answerEntity = new Answer
-                        {
-                            Text = answerText,
-                            IsCorrect = IsCorrectAnswerCell(cell),
-                            Order = col - 3 // Assuming answers start from column 3
-                        };
-
-                        questionEntity.Answers.Add(answerEntity);
-                    }
-
-                    if (questionEntity.Answers.Count == 0)
-                    {
-                        result.Errors.Add($"Dòng {rowNumber} không có đáp án hợp lệ nào.");
-                        await ReportProgressAsync();
-                        continue;
-                    }
-
-                    using (var unitOfWork = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true))
-                    {
-                        await _questionRepository.InsertAsync(
-                            questionEntity,
-                            autoSave: true,
-                            cancellationToken: cancellationToken);
-                        await unitOfWork.CompleteAsync(cancellationToken);
-                    }
-
-                    result.ImportedQuestions++;
-                    await ReportProgressAsync();
+                    return await ImportMultipleChoiceQuestionsAsync(importQuestionDto, reportProgress, memoryStream, cancellationToken);
                 }
-
-                return result;
-            }
         }
     }
-    public static bool IsExcelStream(Stream stream)
-    {
-        if (!stream.CanRead || !stream.CanSeek)
-        {
-            return false;
-        }
 
-        var originalPosition = stream.Position;
-
-        try
-        {
-            stream.Position = 0;
-            var header = new byte[8];
-            var bytesRead = stream.Read(header, 0, header.Length);
-            if (bytesRead < 4)
-            {
-                return false;
-            }
-
-            if (HasXlsSignature(header, bytesRead))
-            {
-                return true;
-            }
-
-            if (!HasZipSignature(header, bytesRead))
-            {
-                return false;
-            }
-
-            stream.Position = 0;
-            using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: true);
-            return archive.Entries.Any(entry =>
-                string.Equals(entry.FullName, "xl/workbook.xml", StringComparison.OrdinalIgnoreCase));
-        }
-        catch
-        {
-            return false;
-        }
-        finally
-        {
-            stream.Position = originalPosition;
-        }
-    }
-    private static bool HasXlsSignature(byte[] header, int bytesRead)
-    {
-        return bytesRead >= 8 &&
-               header[0] == 0xD0 &&
-               header[1] == 0xCF &&
-               header[2] == 0x11 &&
-               header[3] == 0xE0 &&
-               header[4] == 0xA1 &&
-               header[5] == 0xB1 &&
-               header[6] == 0x1A &&
-               header[7] == 0xE1;
-    }
-
-    private static bool HasZipSignature(byte[] header, int bytesRead)
-    {
-        if (bytesRead < 4)
-        {
-            return false;
-        }
-
-        return header[0] == 0x50 && header[1] == 0x4B && (
-            (header[2] == 0x03 && header[3] == 0x04) || // Local file header
-            (header[2] == 0x05 && header[3] == 0x06) || // End of central directory record
-            (header[2] == 0x07 && header[3] == 0x08)    // Data descriptor
-        );
-    }
-
-    private static bool IsCorrectAnswerCell(IXLCell cell)
-    {
-        var color = cell.Style.Fill.BackgroundColor;
-        return color.ColorType == XLColorType.Color && (color.Color.ToArgb() != XLColor.NoColor.Color.ToArgb() || color.Color.ToArgb() != XLColor.White.Color.ToArgb());
-    }
 
     public async Task<QuestionDto> UpdateQuestionAsync(long subjectId, long questionId, UpdateQuestionDto input)
     {
@@ -661,4 +458,214 @@ public class QuestionBankTeacherAppService : TeacherBaseAppService
         await _answerRepository.DeleteAsync(answer, autoSave: true);
         return answer.Id;
     }
+    private async Task<ImportQuestionResultDto> ImportMultipleChoiceQuestionsAsync(ImportQuestionDto importQuestionDto, Func<ImportQuestionProgressDto, Task>? reportProgress, MemoryStream memoryStream, CancellationToken cancellationToken)
+    {
+        // Nhánh 1: Trắc nghiệm (Multiple Choice)
+        memoryStream.Position = 0;
+        using var workbook = new XLWorkbook(memoryStream);
+        var worksheet = workbook.Worksheet(1);
+
+        var result = new ImportQuestionResultDto
+        {
+            ImportedQuestions = 0,
+            Errors = new List<string>()
+        };
+        var rows = worksheet.RowsUsed().Skip(1).ToList();
+        result.TotalQuestions = rows.Count;
+        var processedRows = 0;
+        foreach (var row in rows)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var rowNumber = row.RowNumber();
+
+            async Task ReportProgressAsync()
+            {
+                processedRows++;
+                if (reportProgress != null)
+                {
+                    await reportProgress(new ImportQuestionProgressDto(
+                        "processing",
+                        processedRows,
+                        result.TotalQuestions,
+                        result.ImportedQuestions,
+                        result.Errors.Count,
+                        rowNumber));
+                }
+            }
+
+            var question = row.Cell(1).GetString();
+            var typeStr = row.Cell(2).GetString();
+            if (string.IsNullOrWhiteSpace(question))
+            {
+                result.Errors.Add($"Dòng {rowNumber} không có tiêu đề câu hỏi.");
+                await ReportProgressAsync();
+                continue;
+            }
+            var type = typeStr switch
+            {
+                "1 đáp án" => QuestionType.Single,
+                "nhiều đáp án" => QuestionType.Multi,
+                _ => (QuestionType?)null
+            };
+            if (type == null)
+            {
+                result.Errors.Add($"Dòng {rowNumber} có kiểu câu hỏi không hợp lệ.");
+                await ReportProgressAsync();
+                continue;
+            }
+            var questionEntity = new Question
+            {
+                SubjectId = importQuestionDto.SubjectId,
+                Type = type.Value,
+                Difficulty = QuestionDifficulty.Medium, // Default difficulty, adjust as needed
+                Title = question,
+                DefaultScore = 1 // Default score, adjust as needed
+            };
+            var lastCell = row.LastCellUsed();
+            if (lastCell == null || lastCell.Address.ColumnNumber < 3)
+            {
+                result.Errors.Add($"Dòng {rowNumber} không có đáp án nào.");
+                await ReportProgressAsync();
+                continue;
+            }
+
+            var correctCount = row.Cells(3, lastCell.Address.ColumnNumber)
+                .Count(c => IsCorrectAnswerCell(c));
+
+            if (questionEntity.Type == QuestionType.Single && correctCount != 1)
+            {
+                result.Errors.Add($"Dòng {rowNumber} là câu hỏi loại 'Một đáp án đúng' nhưng có {correctCount} đáp án đúng.");
+                await ReportProgressAsync();
+                continue;
+            }
+
+            if (correctCount == 0)
+            {
+                result.Errors.Add($"Dòng {rowNumber} không có đáp án đúng nào.");
+                await ReportProgressAsync();
+                continue;
+            }
+
+            for (int col = 3; col <= lastCell.Address.ColumnNumber; col++)
+            {
+                var cell = row.Cell(col);
+
+                if (cell.IsEmpty())
+                    continue;
+
+                var answerText = cell.GetString();
+                if (string.IsNullOrWhiteSpace(answerText))
+                {
+                    result.Errors.Add($"Dòng {rowNumber}, cột {col} có đáp án trống.");
+                    continue;
+                }
+                var answerEntity = new Answer
+                {
+                    Text = answerText,
+                    IsCorrect = IsCorrectAnswerCell(cell),
+                    Order = col - 3 // Assuming answers start from column 3
+                };
+
+                questionEntity.Answers.Add(answerEntity);
+            }
+
+            if (questionEntity.Answers.Count == 0)
+            {
+                result.Errors.Add($"Dòng {rowNumber} không có đáp án hợp lệ nào.");
+                await ReportProgressAsync();
+                continue;
+            }
+
+            using (var unitOfWork = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true))
+            {
+                await _questionRepository.InsertAsync(
+                    questionEntity,
+                    autoSave: true,
+                    cancellationToken: cancellationToken);
+                await unitOfWork.CompleteAsync(cancellationToken);
+            }
+
+            result.ImportedQuestions++;
+            await ReportProgressAsync();
+        }
+
+        return result;
+    }
+
+    private bool IsExcelStream(Stream stream)
+    {
+        if (!stream.CanRead || !stream.CanSeek)
+        {
+            return false;
+        }
+
+        var originalPosition = stream.Position;
+
+        try
+        {
+            stream.Position = 0;
+            var header = new byte[8];
+            var bytesRead = stream.Read(header, 0, header.Length);
+            if (bytesRead < 4)
+            {
+                return false;
+            }
+
+            if (HasXlsSignature(header, bytesRead))
+            {
+                return true;
+            }
+
+            if (!HasZipSignature(header, bytesRead))
+            {
+                return false;
+            }
+
+            stream.Position = 0;
+            using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: true);
+            return archive.Entries.Any(entry =>
+                string.Equals(entry.FullName, "xl/workbook.xml", StringComparison.OrdinalIgnoreCase));
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            stream.Position = originalPosition;
+        }
+    }
+    private bool HasXlsSignature(byte[] header, int bytesRead)
+    {
+        return bytesRead >= 8 &&
+               header[0] == 0xD0 &&
+               header[1] == 0xCF &&
+               header[2] == 0x11 &&
+               header[3] == 0xE0 &&
+               header[4] == 0xA1 &&
+               header[5] == 0xB1 &&
+               header[6] == 0x1A &&
+               header[7] == 0xE1;
+    }
+
+    private bool HasZipSignature(byte[] header, int bytesRead)
+    {
+        if (bytesRead < 4)
+        {
+            return false;
+        }
+
+        return header[0] == 0x50 && header[1] == 0x4B && (
+            (header[2] == 0x03 && header[3] == 0x04) || // Local file header
+            (header[2] == 0x05 && header[3] == 0x06) || // End of central directory record
+            (header[2] == 0x07 && header[3] == 0x08)    // Data descriptor
+        );
+    }
+
+    private bool IsCorrectAnswerCell(IXLCell cell)
+    {
+        var color = cell.Style.Fill.BackgroundColor;
+        return color.ColorType == XLColorType.Color && (color.Color.ToArgb() != XLColor.NoColor.Color.ToArgb() || color.Color.ToArgb() != XLColor.White.Color.ToArgb());
+    }
+
 }

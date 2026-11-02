@@ -213,7 +213,7 @@
         document.body.style.overflow = 'hidden';
     }
 
-        function onImportTypeChanged(typeVal) {
+    function onImportTypeChanged(typeVal) {
         const link = document.getElementById('importTemplateLink');
         const text = document.getElementById('importTemplateText');
         const help = document.getElementById('importTypeHelp');
