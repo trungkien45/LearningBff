@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Volo.Abp.AspNetCore.Mvc.UI.RazorPages;
@@ -60,19 +61,34 @@ public class TakeModel : AbpPageModel
 
             if (!string.IsNullOrWhiteSpace(answersJson))
             {
-                var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, List<long>>>(answersJson);
-                if (dict != null)
+                using var doc = JsonDocument.Parse(answersJson);
+                foreach (var prop in doc.RootElement.EnumerateObject())
                 {
-                    foreach (var kvp in dict)
+                    if (long.TryParse(prop.Name, out var qId))
                     {
-                        if (long.TryParse(kvp.Key, out var qId))
+                        var studentAns = new StudentAnswerDto { QuestionId = qId };
+
+                        if (prop.Value.ValueKind == JsonValueKind.Array)
                         {
-                            submitDto.Answers.Add(new StudentAnswerDto
-                            {
-                                QuestionId = qId,
-                                SelectedAnswerIds = kvp.Value
-                            });
+                            studentAns.SelectedAnswerIds = prop.Value.EnumerateArray()
+                                .Select(x => x.GetInt64())
+                                .ToList();
                         }
+                        else if (prop.Value.ValueKind == JsonValueKind.Object)
+                        {
+                            if (prop.Value.TryGetProperty("selectedIds", out var idsElem) && idsElem.ValueKind == JsonValueKind.Array)
+                            {
+                                studentAns.SelectedAnswerIds = idsElem.EnumerateArray()
+                                    .Select(x => x.GetInt64())
+                                    .ToList();
+                            }
+                            if (prop.Value.TryGetProperty("text", out var textElem) && textElem.ValueKind == JsonValueKind.String)
+                            {
+                                studentAns.StudentAnswerText = textElem.GetString();
+                            }
+                        }
+
+                        submitDto.Answers.Add(studentAns);
                     }
                 }
             }

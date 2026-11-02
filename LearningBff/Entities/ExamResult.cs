@@ -38,6 +38,31 @@ public class ExamResult : FullAuditedAggregateRoot<long>
     public DateTime? SubmitTime { get; set; }
 
     public ExamResultStatus Status { get; set; } = ExamResultStatus.InProgress;
+
+    /// <summary>
+    /// Trạng thái chấm bài của giáo viên.
+    /// NotRequired: Đề 100% trắc nghiệm (máy chấm ngay).
+    /// Pending: Đề có tự luận/bán trắc nghiệm đang chờ giáo viên chấm (học sinh thấy: "Chưa chấm").
+    /// Graded: Đã chấm xong (học sinh xem được điểm và thi lại nếu được phép).
+    /// </summary>
+    public ExamGradingStatus GradingStatus { get; set; } = ExamGradingStatus.NotRequired;
+
+    /// <summary>
+    /// Giáo viên chấm bài
+    /// </summary>
+    public Guid? GradedByUserId { get; set; }
+    public IdentityUser? GradedByUser { get; set; }
+
+    /// <summary>
+    /// Thời điểm hoàn tất chấm bài
+    /// </summary>
+    public DateTime? GradedTime { get; set; }
+
+    /// <summary>
+    /// Nhận xét tổng quan của giáo viên cho cả bài thi
+    /// </summary>
+    public string? OverallFeedback { get; set; }
+
     public int AttemptNumber { get; set; } = 1;
 
     public ExamResult()

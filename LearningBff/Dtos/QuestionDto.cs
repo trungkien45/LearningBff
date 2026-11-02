@@ -11,8 +11,8 @@ public class QuestionDto
     public QuestionDifficulty Difficulty { get; set; }
     public QuestionType Type { get; set; }
     public string? GeneralExplanation { get; set; }
+    public string? GradingGuide { get; set; }
     public float DefaultScore { get; set; }
     public int Order { get; set; }
     public List<AnswerDto> Answers { get; set; } = new();
 }
-

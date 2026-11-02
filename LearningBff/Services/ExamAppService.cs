@@ -180,6 +180,7 @@ public class ExamAppService : LearningBffAppService
             StartTime = r.StartTime,
             SubmitTime = r.SubmitTime,
             Status = r.Status,
+            GradingStatus = r.GradingStatus,
             AttemptNumber = r.AttemptNumber,
             TotalQuestions = r.ExamResultAnswers.Select(a => a.QuestionId).Distinct().Count(),
             CorrectQuestions = r.ExamResultAnswers.Where(a => a.IsCorrect).Select(a => a.QuestionId).Distinct().Count()
@@ -325,6 +326,9 @@ public class ExamAppService : LearningBffAppService
     /// <summary>
     /// Nộp bài thi và chấm điểm tự động
     /// </summary>
+    /// <summary>
+    /// Nộp bài thi: tự động chấm trắc nghiệm, nếu có tự luận/bán trắc nghiệm thì chuyển sang chờ giáo viên chấm
+    /// </summary>
     public async Task<ExamResultDto> SubmitExamAsync(SubmitExamDto input)
     {
         var userId = _currentUser.Id
@@ -344,35 +348,101 @@ public class ExamAppService : LearningBffAppService
         var exam = result.Exam!;
         float totalEarnedScore = 0;
         var examResultAnswers = new List<ExamResultAnswer>();
+        bool hasManualGradingQuestions = false;
 
         foreach (var eq in exam.ExamQuestions)
         {
             var question = eq.Question!;
             var studentAns = input.Answers.FirstOrDefault(a => a.QuestionId == question.Id);
             var selectedIds = studentAns?.SelectedAnswerIds ?? new List<long>();
+            var textAnswer = studentAns?.StudentAnswerText?.Trim();
 
             bool isCorrect = false;
+            float earnedScore = 0f;
 
             if (question.Type == QuestionType.Single)
             {
                 var correctId = question.Answers.FirstOrDefault(a => a.IsCorrect)?.Id;
                 isCorrect = correctId.HasValue && selectedIds.Count == 1 && selectedIds[0] == correctId.Value;
+                earnedScore = isCorrect ? eq.Score : 0f;
+                totalEarnedScore += earnedScore;
+
+                if (selectedIds.Any())
+                {
+                    foreach (var answerId in selectedIds)
+                    {
+                        var ansText = question.Answers.FirstOrDefault(a => a.Id == answerId)?.Text ?? string.Empty;
+                        examResultAnswers.Add(new ExamResultAnswer(result.Id, question.Id, answerId, isCorrect, earnedScore)
+                        {
+                            AnswerText = ansText,
+                            IsGraded = true
+                        });
+                    }
+                }
+                else
+                {
+                    examResultAnswers.Add(new ExamResultAnswer(result.Id, question.Id, null, false, 0f)
+                    {
+                        IsGraded = true
+                    });
+                }
             }
-            else // Multi
+            else if (question.Type == QuestionType.Multi)
             {
                 var correctIds = question.Answers.Where(a => a.IsCorrect).Select(a => a.Id).OrderBy(x => x).ToList();
                 isCorrect = selectedIds.OrderBy(x => x).SequenceEqual(correctIds);
-            }
+                earnedScore = isCorrect ? eq.Score : 0f;
+                totalEarnedScore += earnedScore;
 
-            float earnedScore = isCorrect ? eq.Score : 0f;
-            totalEarnedScore += earnedScore;
-
-            if (selectedIds.Any())
-            {
-                foreach (var answerId in selectedIds)
+                if (selectedIds.Any())
                 {
-                    examResultAnswers.Add(new ExamResultAnswer(result.Id, question.Id, answerId, isCorrect, earnedScore));
+                    foreach (var answerId in selectedIds)
+                    {
+                        var ansText = question.Answers.FirstOrDefault(a => a.Id == answerId)?.Text ?? string.Empty;
+                        examResultAnswers.Add(new ExamResultAnswer(result.Id, question.Id, answerId, isCorrect, earnedScore)
+                        {
+                            AnswerText = ansText,
+                            IsGraded = true
+                        });
+                    }
                 }
+                else
+                {
+                    examResultAnswers.Add(new ExamResultAnswer(result.Id, question.Id, null, false, 0f)
+                    {
+                        IsGraded = true
+                    });
+                }
+            }
+            else if (question.Type == QuestionType.Text)
+            {
+                // Tự luận: Giáo viên xem và chấm sau
+                hasManualGradingQuestions = true;
+                examResultAnswers.Add(new ExamResultAnswer(result.Id, question.Id, null, false, 0f)
+                {
+                    StudentAnswerText = textAnswer,
+                    IsGraded = false
+                });
+            }
+            else if (question.Type == QuestionType.Mixed)
+            {
+                // Bán trắc nghiệm: học sinh chọn phương án + giải thích text, giáo viên chấm
+                hasManualGradingQuestions = true;
+                long? selectedId = selectedIds.FirstOrDefault();
+                string ansText = string.Empty;
+                if (selectedId.HasValue && selectedId.Value > 0)
+                {
+                    var opt = question.Answers.FirstOrDefault(a => a.Id == selectedId.Value);
+                    ansText = opt?.Text ?? string.Empty;
+                    isCorrect = opt?.IsCorrect ?? false;
+                }
+
+                examResultAnswers.Add(new ExamResultAnswer(result.Id, question.Id, selectedId > 0 ? selectedId : null, isCorrect, 0f)
+                {
+                    AnswerText = ansText,
+                    StudentAnswerText = textAnswer,
+                    IsGraded = false
+                });
             }
         }
 
@@ -390,6 +460,16 @@ public class ExamAppService : LearningBffAppService
         result.IsPassed = normalizedScore >= exam.PassScore;
         result.SubmitTime = DateTime.UtcNow;
         result.Status = ExamResultStatus.Submitted;
+
+        // Nếu có câu tự luận hoặc bán trắc nghiệm -> Cần giáo viên chấm
+        if (hasManualGradingQuestions)
+        {
+            result.GradingStatus = ExamGradingStatus.Pending;
+        }
+        else
+        {
+            result.GradingStatus = ExamGradingStatus.NotRequired;
+        }
 
         await _examResultRepository.UpdateAsync(result, autoSave: true);
         if (examResultAnswers.Any())
@@ -423,7 +503,7 @@ public class ExamAppService : LearningBffAppService
 
         var selectedByQuestion = result.ExamResultAnswers
             .GroupBy(ra => ra.QuestionId)
-            .ToDictionary(g => g.Key, g => g.Select(ra => ra.AnswerId).ToHashSet());
+            .ToDictionary(g => g.Key, g => g.Where(ra => ra.AnswerId.HasValue).Select(ra => ra.AnswerId!.Value).ToHashSet());
 
         var isCorrectByQuestion = result.ExamResultAnswers
             .GroupBy(ra => ra.QuestionId)
@@ -432,6 +512,18 @@ public class ExamAppService : LearningBffAppService
         var earnedByQuestion = result.ExamResultAnswers
             .GroupBy(ra => ra.QuestionId)
             .ToDictionary(g => g.Key, g => g.First().EarnedScore);
+
+        var textAnswerByQuestion = result.ExamResultAnswers
+            .GroupBy(ra => ra.QuestionId)
+            .ToDictionary(g => g.Key, g => g.FirstOrDefault(x => !string.IsNullOrEmpty(x.StudentAnswerText))?.StudentAnswerText);
+
+        var feedbackByQuestion = result.ExamResultAnswers
+            .GroupBy(ra => ra.QuestionId)
+            .ToDictionary(g => g.Key, g => g.FirstOrDefault(x => !string.IsNullOrEmpty(x.TeacherFeedback))?.TeacherFeedback);
+
+        var isGradedByQuestion = result.ExamResultAnswers
+            .GroupBy(ra => ra.QuestionId)
+            .ToDictionary(g => g.Key, g => g.All(x => x.IsGraded));
 
         var questionsReview = new List<ExamResultQuestionDto>();
         if (exam != null)
@@ -450,6 +542,10 @@ public class ExamAppService : LearningBffAppService
                     EarnedScore = earnedByQuestion.GetValueOrDefault(q.Id, 0f),
                     MaxScore = eq.Score,
                     GeneralExplanation = q.GeneralExplanation,
+                    GradingGuide = q.GradingGuide,
+                    StudentAnswerText = textAnswerByQuestion.GetValueOrDefault(q.Id),
+                    TeacherFeedback = feedbackByQuestion.GetValueOrDefault(q.Id),
+                    IsGraded = isGradedByQuestion.GetValueOrDefault(q.Id, false),
                     Options = q.Answers.OrderBy(a => a.Order).Select(a => new ExamResultOptionDto
                     {
                         AnswerId = a.Id,
@@ -465,15 +561,19 @@ public class ExamAppService : LearningBffAppService
         var canRetake = false;
         if (exam != null && exam.IsPublished)
         {
-            if (!exam.MaxAttempts.HasValue)
+            // Nếu bài thi chưa được chấm xong, không cho thi lại cho đến khi có kết quả chính thức
+            if (result.GradingStatus != ExamGradingStatus.Pending)
             {
-                canRetake = true;
-            }
-            else
-            {
-                var usedAttempts = await _examResultRepository.CountAsync(r =>
-                    r.ExamId == exam.Id && r.UserId == userId && r.Status == ExamResultStatus.Submitted);
-                canRetake = usedAttempts < exam.MaxAttempts.Value;
+                if (!exam.MaxAttempts.HasValue)
+                {
+                    canRetake = true;
+                }
+                else
+                {
+                    var usedAttempts = await _examResultRepository.CountAsync(r =>
+                        r.ExamId == exam.Id && r.UserId == userId && r.Status == ExamResultStatus.Submitted);
+                    canRetake = usedAttempts < exam.MaxAttempts.Value;
+                }
             }
         }
 
@@ -491,6 +591,9 @@ public class ExamAppService : LearningBffAppService
             StartTime = result.StartTime,
             SubmitTime = result.SubmitTime,
             Status = result.Status,
+            GradingStatus = result.GradingStatus,
+            GradedTime = result.GradedTime,
+            OverallFeedback = result.OverallFeedback,
             AttemptNumber = result.AttemptNumber,
             CanRetake = canRetake,
             TotalQuestions = questionsReview.Count,

@@ -1,4 +1,6 @@
-﻿namespace LearningBff.Dtos;
+using LearningBff.Entities;
+
+namespace LearningBff.Dtos;
 
 public class CreateUpdateExamDto
 {

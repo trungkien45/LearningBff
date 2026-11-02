@@ -760,6 +760,39 @@
     </div>
 
     <!-- Modal: Xem kết quả thi của học viên -->
+        <!-- Modal: Chấm bài thi tự luận / bán trắc nghiệm -->
+    <div class="custom-modal-overlay" id="gradeExamModal">
+        <div class="custom-modal-card" style="max-width: 900px; max-height: 90vh; display: flex; flex-direction: column;">
+            <div class="custom-modal-header">
+                <div>
+                    <h5 class="fw-bold mb-0 text-dark">
+                        <i class="fas fa-marker text-warning me-2"></i> Chấm bài thi học viên
+                    </h5>
+                    <div class="text-muted small mt-1" id="gradeExamModalSubtitle"></div>
+                </div>
+                <button type="button" class="btn-close" onclick="closeModal('gradeExamModal')"></button>
+            </div>
+
+            <div class="custom-modal-body" style="overflow-y: auto; flex: 1;">
+                <div id="gradeQuestionsContainer">
+                    <div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin"></i> Đang tải bài làm...</div>
+                </div>
+
+                <div class="border-top pt-3 mt-3">
+                    <label class="form-label fw-bold text-dark"><i class="fas fa-comment-alt me-1 text-primary"></i> Lời nhận xét chung cho cả bài thi:</label>
+                    <textarea id="overallGradeFeedback" class="form-control" rows="2" placeholder="Ghi nhận xét, đánh giá tổng thể cho học viên..."></textarea>
+                </div>
+            </div>
+
+            <div class="custom-modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('gradeExamModal')">Hủy</button>
+                <button type="button" class="btn btn-success fw-bold px-4" id="btnSaveGrade" onclick="submitGrading()">
+                    <i class="fas fa-check-circle me-1"></i> Hoàn tất chấm & Lưu điểm
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="custom-modal-overlay" id="examResultsModal">
         <div class="custom-modal-card" style="max-width: 850px;">
             <div class="custom-modal-header">
@@ -1125,8 +1158,13 @@
         }
 
         // Kết quả thi
+                var gradingResultId = 0;
+        var gradingExamId = 0;
+        var currentGradingQuestions = [];
+
         function openExamResultsModal(subjectId, examId, title) {
             currentSubjectId = subjectId;
+            activeExamId = examId;
             document.getElementById('examResultsModalTitle').textContent = title;
             var container = $('#examResultsContainer');
             container.html('<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin"></i> Đang tải danh sách kết quả...</div>');
@@ -1141,15 +1179,26 @@
                     }
 
                     var html = '<table class="custom-table table-sm">';
-                    html += '<thead><tr><th>Học viên</th><th class="text-center">Điểm số</th><th class="text-center">Kết quả</th><th>Thời gian nộp</th><th class="text-end">Chi tiết</th></tr></thead><tbody>';
+                    html += '<thead><tr><th>Học viên</th><th class="text-center">Trạng thái chấm</th><th class="text-center">Điểm số</th><th>Thời gian nộp</th><th class="text-end">Hành động</th></tr></thead><tbody>';
                     items.forEach(function (r) {
-                        var dateStr = new Date(r.submitTime).toLocaleString();
+                        var dateStr = r.submitTime ? new Date(r.submitTime).toLocaleString() : '-';
+                        var isPending = r.gradingStatus === 1; // Pending
+                        var statusBadge = '';
+                        if (isPending) {
+                            statusBadge = '<span class="badge bg-warning text-dark"><i class="fas fa-clock me-1"></i> Chưa chấm</span>';
+                        } else {
+                            statusBadge = '<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i> Đã chấm</span>';
+                        }
+
                         html += '<tr>';
                         html += '  <td><strong>' + (r.userFullName || r.userName) + '</strong><br><small class="text-muted">' + r.userName + '</small></td>';
-                        html += '  <td class="text-center fw-bold text-primary">' + r.score.toFixed(1) + '</td>';
-                        html += '  <td class="text-center">' + (r.isPassed ? '<span class="badge bg-success">Đạt</span>' : '<span class="badge bg-danger">Chưa đạt</span>') + '</td>';
+                        html += '  <td class="text-center">' + statusBadge + '</td>';
+                        html += '  <td class="text-center fw-bold text-primary">' + (isPending ? '<span class="text-muted">--</span>' : r.score.toFixed(1)) + '</td>';
                         html += '  <td class="small text-muted">' + dateStr + '</td>';
-                        html += '  <td class="text-end"><a href="/Exam/Result?id=' + r.id + '" target="_blank" class="btn btn-sm btn-light border"><i class="fas fa-eye text-primary"></i></a></td>';
+                        html += '  <td class="text-end">';
+                        html += '    <button type="button" class="btn btn-sm btn-primary fw-semibold me-1" onclick="openGradeModal(' + subjectId + ', ' + examId + ', ' + r.id + ', \'' + (r.userFullName || r.userName) + '\')"><i class="fas fa-marker me-1"></i> ' + (isPending ? 'Chấm bài' : 'Xem / Sửa chấm') + '</button>';
+                        html += '    <a href="/Exam/Result?resultId=' + r.id + '" target="_blank" class="btn btn-sm btn-light border" title="Xem dạng học viên"><i class="fas fa-external-link-alt text-secondary"></i></a>';
+                        html += '  </td>';
                         html += '</tr>';
                     });
                     html += '</tbody></table>';
@@ -1157,5 +1206,144 @@
                 }
             });
         }
-    </script>
+
+        function openGradeModal(subjectId, examId, resultId, studentName) {
+            gradingResultId = resultId;
+            gradingExamId = examId;
+            currentSubjectId = subjectId;
+
+            document.getElementById('gradeExamModalSubtitle').textContent = 'Học viên: ' + studentName + ' • Lượt làm bài #' + resultId;
+            var container = $('#gradeQuestionsContainer');
+            container.html('<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin"></i> Đang tải bài làm...</div>');
+            $('#overallGradeFeedback').val('');
+            openModal('gradeExamModal');
+
+            $.getJSON('?handler=ExamResultForGradingJson', { subjectId: subjectId, examId: examId, resultId: resultId }, function (res) {
+                if (res && res.success && res.data) {
+                    var d = res.data;
+                    currentGradingQuestions = d.questions || [];
+                    $('#overallGradeFeedback').val(d.overallFeedback || '');
+
+                    if (currentGradingQuestions.length === 0) {
+                        container.html('<div class="alert alert-info">Đề thi không có câu hỏi nào.</div>');
+                        return;
+                    }
+
+                    var html = '';
+                    currentGradingQuestions.forEach(function (q, idx) {
+                        var qNum = idx + 1;
+                        var isText = q.questionType === 3;
+                        var isMixed = q.questionType === 4;
+                        var isMulti = q.questionType === 2;
+                        var isSingle = q.questionType === 1;
+
+                        html += '<div class="card p-3 mb-3 border">';
+                        html += '  <div class="d-flex justify-content-between align-items-center mb-2">';
+                        html += '    <span class="badge bg-dark">Câu ' + qNum + '</span>';
+                        html += '    <div class="d-flex align-items-center gap-2">';
+                        html += '      <span class="badge bg-light text-secondary border">';
+                        if (isText) html += 'Tự luận';
+                        else if (isMixed) html += 'Bán trắc nghiệm';
+                        else if (isMulti) html += 'Trắc nghiệm nhiều đáp án';
+                        else html += 'Trắc nghiệm 1 đáp án';
+                        html += '      </span>';
+                        html += '      <span class="small fw-bold text-muted">Điểm tối đa: ' + q.maxScore + '</span>';
+                        html += '    </div>';
+                        html += '  </div>';
+
+                        html += '  <h6 class="fw-bold mb-2 text-dark">' + q.questionTitle + '</h6>';
+
+                        // Options if any
+                        if (q.options && q.options.length > 0) {
+                            html += '  <div class="bg-light p-2 rounded mb-2 small">';
+                            html += '    <strong>Phương án trắc nghiệm:</strong>';
+                            q.options.forEach(function (opt) {
+                                var prefix = opt.isSelectedByStudent ? '<i class="fas fa-check-circle text-primary"></i> [Học viên chọn] ' : '';
+                                var correctTag = opt.isCorrectAnswer ? ' <span class="badge bg-success ms-1">Đúng</span>' : '';
+                                html += '    <div class="py-1 ' + (opt.isSelectedByStudent ? 'fw-bold text-primary' : '') + '">' + prefix + opt.text + correctTag + '</div>';
+                            });
+                            html += '  </div>';
+                        }
+
+                        // Student text answer
+                        if (q.studentAnswerText) {
+                            html += '  <div class="alert alert-secondary p-2 mb-2 small">';
+                            html += '    <div class="fw-bold text-dark mb-1"><i class="fas fa-pen-nib me-1"></i> Bài làm văn bản của học viên:</div>';
+                            html += '    <div style="white-space: pre-wrap;">' + q.studentAnswerText + '</div>';
+                            html += '  </div>';
+                        } else if (isText || isMixed) {
+                            html += '  <div class="alert alert-light border p-2 mb-2 small text-muted"><em>Học viên không điền nội dung văn bản cho câu này.</em></div>';
+                        }
+
+                        // Grading Guide if any
+                        if (q.gradingGuide) {
+                            html += '  <div class="p-2 bg-info bg-opacity-10 border border-info border-opacity-25 rounded mb-2 small text-info-emphasis">';
+                            html += '    <strong><i class="fas fa-info-circle me-1"></i> Hướng dẫn chấm / Gợi ý đáp án:</strong> ' + q.gradingGuide;
+                            html += '  </div>';
+                        }
+
+                        // Score input & feedback
+                        html += '  <div class="row g-2 align-items-center mt-1 pt-2 border-top">';
+                        html += '    <div class="col-md-4 d-flex align-items-center gap-2">';
+                        html += '      <label class="form-label small fw-bold mb-0 text-nowrap">Điểm cho câu:</label>';
+                        html += '      <input type="number" step="0.25" min="0" max="' + q.maxScore + '" class="form-control form-control-sm text-center fw-bold" id="grade_score_' + q.questionId + '" value="' + (q.earnedScore || 0) + '" />';
+                        html += '      <span class="small text-muted">/ ' + q.maxScore + '</span>';
+                        html += '    </div>';
+                        html += '    <div class="col-md-8">';
+                        html += '      <input type="text" class="form-control form-control-sm" id="grade_fb_' + q.questionId + '" placeholder="Nhận xét của giáo viên cho câu này..." value="' + (q.teacherFeedback || '') + '" />';
+                        html += '    </div>';
+                        html += '  </div>';
+
+                        html += '</div>';
+                    });
+
+                    container.html(html);
+                } else {
+                    container.html('<div class="alert alert-danger">Không thể tải chi tiết bài làm.</div>');
+                }
+            });
+        }
+
+        function submitGrading() {
+            var btn = $('#btnSaveGrade');
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Đang lưu...');
+
+            var payload = {
+                resultId: gradingResultId,
+                overallFeedback: $('#overallGradeFeedback').val().trim(),
+                questionGrades: []
+            };
+
+            currentGradingQuestions.forEach(function (q) {
+                var score = parseFloat($('#grade_score_' + q.questionId).val()) || 0;
+                var fb = $('#grade_fb_' + q.questionId).val() || '';
+                payload.questionGrades.push({
+                    questionId: q.questionId,
+                    earnedScore: score,
+                    teacherFeedback: fb
+                });
+            });
+
+            $.ajax({
+                url: '?handler=GradeResultJson&subjectId=' + currentSubjectId + '&examId=' + gradingExamId,
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
+                success: function (res) {
+                    btn.prop('disabled', false).html('<i class="fas fa-check-circle me-1"></i> Hoàn tất chấm & Lưu điểm');
+                    if (res && res.success) {
+                        alert('Đã lưu kết quả chấm thi thành công!');
+                        closeModal('gradeExamModal');
+                        openExamResultsModal(currentSubjectId, gradingExamId, document.getElementById('examResultsModalTitle').textContent);
+                    } else {
+                        alert(res.message || 'Lỗi khi lưu kết quả chấm.');
+                    }
+                },
+                error: function () {
+                    btn.prop('disabled', false).html('<i class="fas fa-check-circle me-1"></i> Hoàn tất chấm & Lưu điểm');
+                    alert('Lỗi kết nối khi lưu kết quả chấm.');
+                }
+            });
+        }
+      </script>
 }

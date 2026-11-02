@@ -661,9 +661,11 @@
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-semibold">Loại câu hỏi <span class="text-danger">*</span></label>
-                            <select name="type" id="createQuestionType" class="form-select" required>
-                                <option value="1">Một đáp án đúng</option>
-                                <option value="2">Nhiều đáp án đúng</option>
+                            <select name="type" id="createQuestionType" class="form-select" onchange="onQuestionTypeChanged('createQuestionType', 'createAnswersSection', 'createGradingGuideSection')" required>
+                                <option value="1">Một đáp án đúng (Single)</option>
+                                <option value="2">Nhiều đáp án đúng (Multi)</option>
+                                <option value="3">Tự luận (Text)</option>
+                                <option value="4">Bán trắc nghiệm (Mixed)</option>
                             </select>
                         </div>
                         <div class="col-md-4">
@@ -677,8 +679,12 @@
                         <textarea name="generalExplanation" class="form-control" rows="2" placeholder="Giải thích vì sao đáp án đúng..."></textarea>
                     </div>
 
+                    <div class="mb-3" id="createGradingGuideSection" style="display: none;">
+                        <label class="form-label fw-semibold text-warning-emphasis"><i class="fas fa-clipboard-check me-1"></i> Hướng dẫn chấm / Gợi ý đáp án</label>
+                        <textarea name="gradingGuide" class="form-control" rows="2" placeholder="Ghi chú bareme, tiêu chí chấm cho giáo viên..."></textarea>
+                    </div>
                     <!-- Answers section -->
-                    <div class="border-top pt-3">
+                    <div class="border-top pt-3" id="createAnswersSection">
                         <div class="answers-section-header">
                             <label class="form-label fw-semibold mb-0"><i class="fas fa-list-check text-success me-1"></i> Các phương án trả lời <span class="text-danger">*</span></label>
                             <button type="button" class="btn btn-sm btn-outline-success" onclick="addAnswer('createAnswersContainer')">
@@ -732,9 +738,11 @@
                         </div>
                         <div class="col-md-4">
                             <label class="form-label fw-semibold">Loại câu hỏi <span class="text-danger">*</span></label>
-                            <select name="type" id="editQuestionType" class="form-select" required>
-                                <option value="1">Một đáp án đúng</option>
-                                <option value="2">Nhiều đáp án đúng</option>
+                            <select name="type" id="editQuestionType" class="form-select" onchange="onQuestionTypeChanged('editQuestionType', 'editAnswersSection', 'editGradingGuideSection')" required>
+                                <option value="1">Một đáp án đúng (Single)</option>
+                                <option value="2">Nhiều đáp án đúng (Multi)</option>
+                                <option value="3">Tự luận (Text)</option>
+                                <option value="4">Bán trắc nghiệm (Mixed)</option>
                             </select>
                         </div>
                         <div class="col-md-4">
@@ -747,9 +755,12 @@
                         <label class="form-label fw-semibold">Giải thích chi tiết</label>
                         <textarea name="generalExplanation" id="editQuestionExplanation" class="form-control" rows="2"></textarea>
                     </div>
+                    <div class="mb-3" id="editGradingGuideSection" style="display: none;">
+                        <label class="form-label fw-semibold text-warning-emphasis"><i class="fas fa-clipboard-check me-1"></i> Hướng dẫn chấm / Gợi ý đáp án</label>
+                        <textarea name="gradingGuide" id="editQuestionGradingGuide" class="form-control" rows="2" placeholder="Ghi chú bareme, tiêu chí chấm cho giáo viên..."></textarea>
 
                     <!-- Answers section -->
-                    <div class="border-top pt-3">
+                    <div class="border-top pt-3" id="editAnswersSection">
                         <div class="answers-section-header">
                             <label class="form-label fw-semibold mb-0"><i class="fas fa-list-check text-success me-1"></i> Các phương án trả lời <span class="text-danger">*</span></label>
                             <button type="button" class="btn btn-sm btn-outline-success" onclick="addAnswer('editAnswersContainer')">
@@ -917,30 +928,78 @@
             return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
         }
 
+                function onQuestionTypeChanged(typeSelectId, answersSectionId, guideSectionId) {
+            var val = parseInt(document.getElementById(typeSelectId).value);
+            var sec = document.getElementById(answersSectionId);
+            var guideSec = document.getElementById(guideSectionId);
+
+            if (sec) {
+                if (val === 3) { 
+                    // Tự luận (Text) -> Ẩn toàn bộ khu vực phương án trắc nghiệm
+                    sec.style.setProperty('display', 'none', 'important');
+                    // Tắt thuộc tính required của các ô input text bên trong để form submit được mà không báo lỗi HTML5 validation
+                    var inputs = sec.querySelectorAll('.answer-text-input');
+                    inputs.forEach(function(inp) {
+                        inp.removeAttribute('required');
+                    });
+                } else {
+                    sec.style.display = 'block';
+                    var inputs = sec.querySelectorAll('.answer-text-input');
+                    inputs.forEach(function(inp) {
+                        inp.setAttribute('required', 'required');
+                    });
+                }
+            }
+
+            if (guideSec) {
+                if (val === 3 || val === 4) { 
+                    // Tự luận hoặc Bán trắc nghiệm -> Hiện phần hướng dẫn chấm / bareme
+                    guideSec.style.display = 'block';
+                } else {
+                    guideSec.style.display = 'none';
+                }
+            }
+        }
+
         function validateAnswerForm(typeSelectId, containerId) {
             var type = document.getElementById(typeSelectId);
             if (!type) return true;
+            var val = parseInt(type.value);
+            if (val === 3) {
+                // Tự luận: Xóa toàn bộ input phương án trắc nghiệm trước khi submit để backend không lưu answers thừa
+                var container = document.getElementById(containerId);
+                if (container) {
+                    container.innerHTML = '';
+                }
+                return true;
+            }
             var checks = document.querySelectorAll('#' + containerId + ' input[type="checkbox"]:checked');
             var rows   = document.querySelectorAll('#' + containerId + ' .answer-editor');
             if (rows.length < 2) {
-                alert('Cần ít nhất 2 phương án trả lời!');
+                alert('Cần ít nhất 2 phương án trả lời cho câu hỏi trắc nghiệm hoặc bán trắc nghiệm!');
                 return false;
             }
-            if (parseInt(type.value) === 1 && checks.length !== 1) {
+            if (val === 1 && checks.length !== 1) {
                 alert('Câu hỏi "Một đáp án đúng" phải có đúng 1 phương án được đánh dấu đúng!');
                 return false;
             }
-            if (parseInt(type.value) === 2 && checks.length < 1) {
+            if (val === 2 && checks.length < 1) {
                 alert('Câu hỏi "Nhiều đáp án đúng" phải có ít nhất 1 phương án đúng!');
+                return false;
+            }
+            if (val === 4 && checks.length !== 1) {
+                alert('Câu hỏi "Bán trắc nghiệm" phải có đúng 1 phương án đúng trắc nghiệm làm cơ sở chấm!');
                 return false;
             }
             return true;
         }
 
-        // ─── Open Create modal ────────────────────────────────────────
         function openCreateQuestionModal() {
             answerCounters['createAnswersContainer'] = 0;
             document.getElementById('createAnswersContainer').innerHTML = '';
+            document.getElementById('createQuestionType').value = '1';
+            onQuestionTypeChanged('createQuestionType', 'createAnswersSection', 'createGradingGuideSection');
+
             // Pre-populate 4 blank answers
             addAnswer('createAnswersContainer');
             addAnswer('createAnswersContainer');
@@ -949,7 +1008,7 @@
             openModal('createQuestionModal');
         }
 
-        // ─── Open Edit modal ──────────────────────────────────────────
+        // Open Edit modal
         function openEditQuestionModal(id, subjectId) {
             var q = questionsData.find(function(x){ return x.id === id; });
             if (!q) return;
@@ -960,16 +1019,21 @@
             document.getElementById('editQuestionType').value        = q.type;
             document.getElementById('editQuestionScore').value       = q.defaultScore;
             document.getElementById('editQuestionExplanation').value = q.generalExplanation || '';
+            var guideEl = document.getElementById('editQuestionGradingGuide');
+            if (guideEl) guideEl.value = q.gradingGuide || '';
+
+            onQuestionTypeChanged('editQuestionType', 'editAnswersSection', 'editGradingGuideSection');
 
             answerCounters['editAnswersContainer'] = 0;
             document.getElementById('editAnswersContainer').innerHTML = '';
             var answers = q.answers || [];
             if (answers.length === 0) {
-                // Pre-populate 4 blanks if no existing answers
-                addAnswer('editAnswersContainer');
-                addAnswer('editAnswersContainer');
-                addAnswer('editAnswersContainer');
-                addAnswer('editAnswersContainer');
+                if (q.type !== 3) {
+                    addAnswer('editAnswersContainer');
+                    addAnswer('editAnswersContainer');
+                    addAnswer('editAnswersContainer');
+                    addAnswer('editAnswersContainer');
+                }
             } else {
                 answers.forEach(function(a){
                     addAnswer('editAnswersContainer', a.id, a.text, a.isCorrect);

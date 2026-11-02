@@ -10,6 +10,7 @@ public class SubjectFilterDto
     public long Id { get; set; }
     public string Name { get; set; } = string.Empty;
 }
+
 public class ExamDetailDto
 {
     public long Id { get; set; }
@@ -28,6 +29,7 @@ public class ExamDetailDto
     public int? MaxAttempts { get; set; }
     public List<QuestionDto> Questions { get; set; } = new();
 }
+
 public class ExamSummaryDto
 {
     public long Id { get; set; }
@@ -50,6 +52,7 @@ public class ExamSummaryDto
     public bool CanTake { get; set; } = true;
     public int QuestionCount { get; set; }
 }
+
 public class ExamDto
 {
     public long Id { get; set; }
@@ -108,6 +111,7 @@ public class StudentAnswerDto
 {
     public long QuestionId { get; set; }
     public List<long> SelectedAnswerIds { get; set; } = new();
+    public string? StudentAnswerText { get; set; }
 }
 
 public class ExamResultDto
@@ -124,6 +128,9 @@ public class ExamResultDto
     public DateTime StartTime { get; set; }
     public DateTime? SubmitTime { get; set; }
     public ExamResultStatus Status { get; set; }
+    public ExamGradingStatus GradingStatus { get; set; } = ExamGradingStatus.NotRequired;
+    public DateTime? GradedTime { get; set; }
+    public string? OverallFeedback { get; set; }
     public int AttemptNumber { get; set; }
     public bool CanRetake { get; set; }
     public TimeSpan? Duration => SubmitTime.HasValue ? SubmitTime.Value - StartTime : null;
@@ -144,6 +151,10 @@ public class ExamResultQuestionDto
     public float EarnedScore { get; set; }
     public float MaxScore { get; set; }
     public string? GeneralExplanation { get; set; }
+    public string? StudentAnswerText { get; set; }
+    public string? TeacherFeedback { get; set; }
+    public bool IsGraded { get; set; }
+    public string? GradingGuide { get; set; }
     public List<ExamResultOptionDto> Options { get; set; } = new();
 }
 
@@ -154,4 +165,18 @@ public class ExamResultOptionDto
     public bool IsCorrectAnswer { get; set; }
     public bool IsSelectedByStudent { get; set; }
     public string? Explanation { get; set; }
+}
+
+public class GradeExamResultDto
+{
+    public long ResultId { get; set; }
+    public string? OverallFeedback { get; set; }
+    public List<GradeQuestionAnswerDto> QuestionGrades { get; set; } = new();
+}
+
+public class GradeQuestionAnswerDto
+{
+    public long QuestionId { get; set; }
+    public float EarnedScore { get; set; }
+    public string? TeacherFeedback { get; set; }
 }

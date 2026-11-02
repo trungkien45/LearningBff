@@ -66,6 +66,7 @@ public class QuestionBankTeacherAppService : TeacherBaseAppService
             Difficulty = q.Difficulty,
             Type = q.Type,
             GeneralExplanation = q.GeneralExplanation,
+            GradingGuide = q.GradingGuide,
             DefaultScore = q.DefaultScore,
             Order = q.Order,
             Answers = q.Answers.OrderBy(a => a.Order).Select(a => new AnswerDto
@@ -110,6 +111,7 @@ public class QuestionBankTeacherAppService : TeacherBaseAppService
             Difficulty = q.Difficulty,
             Type = q.Type,
             GeneralExplanation = q.GeneralExplanation,
+            GradingGuide = q.GradingGuide,
             DefaultScore = q.DefaultScore,
             Order = q.Order,
             Answers = q.Answers.OrderBy(a => a.Order).Select(a => new AnswerDto
@@ -139,6 +141,7 @@ public class QuestionBankTeacherAppService : TeacherBaseAppService
             Difficulty = question.Difficulty,
             Type = question.Type,
             GeneralExplanation = question.GeneralExplanation,
+            GradingGuide = question.GradingGuide,
             DefaultScore = question.DefaultScore,
             Order = question.Order,
         };
@@ -162,7 +165,7 @@ public class QuestionBankTeacherAppService : TeacherBaseAppService
         {
             throw new AbpAuthorizationException("Độ khó không hợp lệ.");
         }
-        if (input.Type < QuestionType.Single || input.Type > QuestionType.Multi)
+        if (input.Type < QuestionType.Single || input.Type > QuestionType.Mixed)
         {
             throw new AbpAuthorizationException("Loại câu hỏi không hợp lệ.");
         }
@@ -175,7 +178,8 @@ public class QuestionBankTeacherAppService : TeacherBaseAppService
             Title = input.Title.Trim(),
             Difficulty = input.Difficulty,
             Type = input.Type,
-            GeneralExplanation = input.GeneralExplanation.Trim(),
+            GeneralExplanation = input.GeneralExplanation?.Trim(),
+            GradingGuide = input.GradingGuide?.Trim(),
             DefaultScore = input.DefaultScore,
             Order = input.Order,
             SubjectId = subjectId
@@ -202,6 +206,7 @@ public class QuestionBankTeacherAppService : TeacherBaseAppService
             Difficulty = question.Difficulty,
             Type = question.Type,
             GeneralExplanation = question.GeneralExplanation,
+            GradingGuide = question.GradingGuide,
             DefaultScore = question.DefaultScore,
             Order = question.Order,
         };
@@ -456,7 +461,7 @@ public class QuestionBankTeacherAppService : TeacherBaseAppService
         {
             throw new AbpAuthorizationException("Độ khó không hợp lệ.");
         }
-        if (input.Type < QuestionType.Single || input.Type > QuestionType.Multi)
+        if (input.Type < QuestionType.Single || input.Type > QuestionType.Mixed)
         {
             throw new AbpAuthorizationException("Loại câu hỏi không hợp lệ.");
         }
@@ -467,7 +472,8 @@ public class QuestionBankTeacherAppService : TeacherBaseAppService
         question.Title = input.Title.Trim();
         question.Difficulty = input.Difficulty;
         question.Type = input.Type;
-        question.GeneralExplanation = input.GeneralExplanation.Trim();
+        question.GeneralExplanation = input.GeneralExplanation?.Trim();
+        question.GradingGuide = input.GradingGuide?.Trim();
         question.DefaultScore = input.DefaultScore;
         question.Order = input.Order;
         await _questionRepository.UpdateAsync(question, autoSave: true);
@@ -495,6 +501,7 @@ public class QuestionBankTeacherAppService : TeacherBaseAppService
             Difficulty = question.Difficulty,
             Type = question.Type,
             GeneralExplanation = question.GeneralExplanation,
+            GradingGuide = question.GradingGuide,
             DefaultScore = question.DefaultScore,
             Order = question.Order,
         };

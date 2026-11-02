@@ -164,6 +164,7 @@ public class QuestionsModel : AbpPageModel
         float defaultScore = 1,
         int order = 0,
         string? generalExplanation = null,
+        string? gradingGuide = null,
         string? search = null,
         int currentPage = 1,
         List<AnswerInput>? Answers = null)
@@ -178,6 +179,7 @@ public class QuestionsModel : AbpPageModel
                 DefaultScore = defaultScore,
                 Order = order,
                 GeneralExplanation = generalExplanation ?? string.Empty,
+                GradingGuide = gradingGuide,
                 Answers = (Answers ?? new()).Select(a => new CreateAnswerDto
                 {
                     Text = a.Text,
@@ -205,6 +207,7 @@ public class QuestionsModel : AbpPageModel
         float defaultScore = 1,
         int order = 0,
         string? generalExplanation = null,
+        string? gradingGuide = null,
         string? search = null,
         int currentPage = 1,
         List<AnswerInput>? Answers = null)
@@ -219,6 +222,7 @@ public class QuestionsModel : AbpPageModel
                 DefaultScore = defaultScore,
                 Order = order,
                 GeneralExplanation = generalExplanation ?? string.Empty,
+                GradingGuide = gradingGuide,
                 Answers = (Answers ?? new()).Select(a => new CreateAnswerDto
                 {
                     Text = a.Text,

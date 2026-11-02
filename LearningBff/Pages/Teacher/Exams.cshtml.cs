@@ -173,6 +173,32 @@ public class ExamsModel : AbpPageModel
         }
     }
 
+    public async Task<IActionResult> OnGetExamResultForGradingJsonAsync(long subjectId, long examId, long resultId)
+    {
+        try
+        {
+            var data = await _examTeacherAppService.GetExamResultDetailForGradingAsync(subjectId, examId, resultId);
+            return new JsonResult(new { success = true, data });
+        }
+        catch (Exception ex)
+        {
+            return new JsonResult(new { success = false, message = ex.Message });
+        }
+    }
+
+    public async Task<IActionResult> OnPostGradeResultJsonAsync(long subjectId, long examId, [FromBody] GradeExamResultDto input)
+    {
+        try
+        {
+            await _examTeacherAppService.GradeExamResultAsync(subjectId, examId, input);
+            return new JsonResult(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            return new JsonResult(new { success = false, message = ex.Message });
+        }
+    }
+
     public async Task<IActionResult> OnGetExamResultsJsonAsync(long subjectId, long examId)
     {
         try

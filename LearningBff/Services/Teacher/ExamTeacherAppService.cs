@@ -418,6 +418,7 @@ namespace LearningBff.Services.Teacher
                 UserFullName = r.User?.Name ?? string.Empty,
                 Score = r.Score,
                 Status = r.Status,
+                GradingStatus = r.GradingStatus,
                 IsPassed = r.IsPassed,
                 SubmitTime = r.SubmitTime
             }).ToList(), totalCount);
@@ -454,6 +455,147 @@ namespace LearningBff.Services.Teacher
             };
         }
 
+                public async Task<ExamResultDto> GetExamResultDetailForGradingAsync(long subjectId, long examId, long resultId)
+        {
+            Subject subject = await FindSubjectForTeacherAsync(subjectId);
+            var exam = await (await _examRepository.GetQueryableAsync())
+                .Include(e => e.ExamQuestions)
+                    .ThenInclude(eq => eq.Question)
+                        .ThenInclude(q => q!.Answers)
+                .Where(e => e.SubjectId == subjectId && e.Id == examId)
+                .FirstOrDefaultAsync();
+            if (exam == null)
+            {
+                throw new UserFriendlyException("Không tìm thấy đề thi.");
+            }
+
+            var result = await (await _examResultRepository.GetQueryableAsync())
+                .Include(r => r.User)
+                .Include(r => r.ExamResultAnswers)
+                .Where(r => r.ExamId == examId && r.Id == resultId)
+                .FirstOrDefaultAsync();
+            if (result == null)
+            {
+                throw new UserFriendlyException("Không tìm thấy kết quả làm bài.");
+            }
+
+            var answersByQuestion = result.ExamResultAnswers.GroupBy(a => a.QuestionId).ToDictionary(g => g.Key, g => g.ToList());
+
+            var questionsDto = new List<ExamResultQuestionDto>();
+            foreach (var eq in exam.ExamQuestions.OrderBy(q => q.Order))
+            {
+                var q = eq.Question!;
+                var ansList = answersByQuestion.GetValueOrDefault(q.Id) ?? new List<ExamResultAnswer>();
+                var selectedAnswerIds = ansList.Where(a => a.AnswerId.HasValue).Select(a => a.AnswerId!.Value).ToHashSet();
+                var firstAns = ansList.FirstOrDefault();
+
+                questionsDto.Add(new ExamResultQuestionDto
+                {
+                    QuestionId = q.Id,
+                    QuestionTitle = q.Title,
+                    QuestionType = q.Type,
+                    MaxScore = eq.Score,
+                    EarnedScore = ansList.Sum(a => a.EarnedScore),
+                    IsCorrect = ansList.Any(a => a.IsCorrect),
+                    GeneralExplanation = q.GeneralExplanation,
+                    GradingGuide = q.GradingGuide,
+                    StudentAnswerText = ansList.FirstOrDefault(a => !string.IsNullOrEmpty(a.StudentAnswerText))?.StudentAnswerText,
+                    TeacherFeedback = ansList.FirstOrDefault(a => !string.IsNullOrEmpty(a.TeacherFeedback))?.TeacherFeedback,
+                    IsGraded = ansList.All(a => a.IsGraded),
+                    Options = q.Answers.OrderBy(a => a.Order).Select(a => new ExamResultOptionDto
+                    {
+                        AnswerId = a.Id,
+                        Text = a.Text,
+                        IsCorrectAnswer = a.IsCorrect,
+                        IsSelectedByStudent = selectedAnswerIds.Contains(a.Id),
+                        Explanation = a.Explanation
+                    }).ToList()
+                });
+            }
+
+            return new ExamResultDto
+            {
+                Id = result.Id,
+                ExamId = result.ExamId,
+                ExamTitle = exam.Title,
+                SubjectId = exam.SubjectId,
+                UserId = result.UserId,
+                UserName = result.User?.UserName ?? string.Empty,
+                UserFullName = result.User?.Name ?? string.Empty,
+                Score = result.Score,
+                MaxScore = result.MaxScore,
+                IsPassed = result.IsPassed,
+                SubmitTime = result.SubmitTime,
+                Status = result.Status,
+                GradingStatus = result.GradingStatus,
+                GradedTime = result.GradedTime,
+                OverallFeedback = result.OverallFeedback,
+                AttemptNumber = result.AttemptNumber,
+                TotalQuestions = questionsDto.Count,
+                Questions = questionsDto
+            };
+        }
+
+        public async Task GradeExamResultAsync(long subjectId, long examId, GradeExamResultDto input)
+        {
+            Subject subject = await FindSubjectForTeacherAsync(subjectId);
+            var exam = await (await _examRepository.GetQueryableAsync())
+                .Include(e => e.ExamQuestions)
+                .Where(e => e.SubjectId == subjectId && e.Id == examId)
+                .FirstOrDefaultAsync();
+            if (exam == null)
+            {
+                throw new UserFriendlyException("Không tìm thấy đề thi.");
+            }
+
+            var result = await (await _examResultRepository.GetQueryableAsync())
+                .Include(r => r.ExamResultAnswers)
+                .Where(r => r.ExamId == examId && r.Id == input.ResultId)
+                .FirstOrDefaultAsync();
+            if (result == null)
+            {
+                throw new UserFriendlyException("Không tìm thấy kết quả làm bài.");
+            }
+
+            var answersByQuestion = result.ExamResultAnswers.GroupBy(a => a.QuestionId).ToDictionary(g => g.Key, g => g.ToList());
+            var questionScoreDict = exam.ExamQuestions.ToDictionary(eq => eq.QuestionId, eq => eq.Score);
+
+            float totalEarnedScore = 0;
+
+            foreach (var qGrade in input.QuestionGrades)
+            {
+                var maxScoreForQ = questionScoreDict.GetValueOrDefault(qGrade.QuestionId, 0f);
+                var awardedScore = Math.Clamp(qGrade.EarnedScore, 0f, maxScoreForQ);
+                totalEarnedScore += awardedScore;
+
+                if (answersByQuestion.TryGetValue(qGrade.QuestionId, out var ansList))
+                {
+                    foreach (var ans in ansList)
+                    {
+                        ans.EarnedScore = awardedScore;
+                        ans.TeacherFeedback = qGrade.TeacherFeedback?.Trim();
+                        ans.IsGraded = true;
+                    }
+                }
+            }
+
+            // Tính điểm quy đổi trên thang điểm MaxScore của đề thi
+            var totalQuestionScore = exam.ExamQuestions.Sum(eq => eq.Score);
+            float normalizedScore = 0;
+            if (totalQuestionScore > 0)
+            {
+                normalizedScore = (float)Math.Round(totalEarnedScore / totalQuestionScore * exam.MaxScore, 2);
+            }
+
+            result.Score = normalizedScore;
+            result.IsPassed = normalizedScore >= exam.PassScore;
+            result.GradingStatus = ExamGradingStatus.Graded;
+            result.GradedByUserId = CurrentUser.Id;
+            result.GradedTime = DateTime.UtcNow;
+            result.OverallFeedback = input.OverallFeedback?.Trim();
+
+            await _examResultRepository.UpdateAsync(result, autoSave: true);
+        }
         private async Task<ExamQuestionScoreSummaryDto> GetQuestionScoreSummaryAsync(long examId, float maxScore)
         {
             var questions = await _examQuestionRepository.GetListAsync(q => q.ExamId == examId);

@@ -14,6 +14,12 @@ public class Question : FullAuditedEntity<long>
 
     public QuestionDifficulty Difficulty { get; set; } = QuestionDifficulty.Medium;
     public string? GeneralExplanation { get; set; }
+
+    /// <summary>
+    /// Bareme điểm hoặc câu trả lời mẫu tham khảo cho giáo viên chấm bài (tự luận / bán trắc nghiệm)
+    /// </summary>
+    public string? GradingGuide { get; set; }
+
     public float DefaultScore { get; set; } = 1.0f;
     public int Order { get; set; }
 

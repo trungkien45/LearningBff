@@ -306,11 +306,21 @@
             <div class="history-list">
                 @foreach (var item in Model.MyHistory)
                 {
+                    var isPending = item.GradingStatus == LearningBff.Entities.ExamGradingStatus.Pending;
                     <div class="history-card">
                         <div class="d-flex align-items-center gap-3">
-                            <div class="score-circle @(item.IsPassed ? "score-pass" : "score-fail")">
-                                @item.Score
-                            </div>
+                            @if (isPending)
+                            {
+                                <div class="score-circle" style="background: #fef3c7; color: #b45309; border: 2px solid #fde68a;" title="Chờ chấm điểm">
+                                    <i class="fas fa-hourglass-half"></i>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="score-circle @(item.IsPassed ? "score-pass" : "score-fail")">
+                                    @item.Score
+                                </div>
+                            }
                             <div>
                                 <h3 class="h6 fw-bold mb-1">@item.ExamTitle</h3>
                                 <div class="d-flex flex-wrap align-items-center gap-2 small text-muted">
@@ -318,17 +328,29 @@
                                     <span>•</span>
                                     <span>Lần thi thứ <strong>@item.AttemptNumber</strong></span>
                                     <span>•</span>
-                                    <span>Nộp lúc: <strong>@(item.SubmitTime?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "—")</strong></span>
-                                    <span>•</span>
-                                    <span>Đúng <strong>@item.CorrectQuestions</strong>/@item.TotalQuestions câu</span>
+                                    <span>Nộp lúc: <strong>@(item.SubmitTime?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "-")</strong></span>
+                                    @if (!isPending)
+                                    {
+                                        <span>•</span>
+                                        <span>Đúng <strong>@item.CorrectQuestions</strong>/@item.TotalQuestions câu</span>
+                                    }
                                 </div>
                             </div>
                         </div>
 
                         <div class="d-flex align-items-center gap-3">
-                            <span class="badge @(item.IsPassed ? "bg-success" : "bg-danger") px-3 py-2 fs-6">
-                                @(item.IsPassed ? "✓ Đạt" : "✗ Chưa đạt")
-                            </span>
+                            @if (isPending)
+                            {
+                                <span class="badge bg-warning text-dark px-3 py-2 fs-6">
+                                    <i class="fas fa-clock me-1"></i> Chưa chấm
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge @(item.IsPassed ? "bg-success" : "bg-danger") px-3 py-2 fs-6">
+                                    @(item.IsPassed ? "✓ Đạt" : "✗ Chưa đạt")
+                                </span>
+                            }
                             <a href="/Exam/Result?resultId=@item.Id" class="btn btn-outline-primary fw-semibold btn-sm px-3">
                                 Chi tiết <i class="fas fa-chevron-right ms-1"></i>
                             </a>

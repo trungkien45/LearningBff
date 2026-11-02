@@ -158,41 +158,108 @@
                     var q = Model.ExamData.Questions[i];
                     var qNumber = i + 1;
                     var isMulti = q.Type == LearningBff.Entities.QuestionType.Multi;
+                    var isText = q.Type == LearningBff.Entities.QuestionType.Text;
+                    var isMixed = q.Type == LearningBff.Entities.QuestionType.Mixed;
 
                     <div class="question-card" id="question-card-@q.QuestionId">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <span class="badge bg-dark bg-opacity-75 fs-6 px-3 py-1">Câu @qNumber</span>
                             <span class="badge bg-light text-secondary border">
-                                @(isMulti ? "Nhiều đáp án đúng" : "Một đáp án đúng") · @q.Score điểm
+                                @if (isText)
+                                {
+                                    <span><i class="fas fa-pen-fancy me-1 text-info"></i> Tự luận</span>
+                                }
+                                else if (isMixed)
+                                {
+                                    <span><i class="fas fa-layer-group me-1 text-warning"></i> Bán trắc nghiệm</span>
+                                }
+                                else if (isMulti)
+                                {
+                                    <span><i class="fas fa-check-square me-1 text-success"></i> Nhiều đáp án</span>
+                                }
+                                else
+                                {
+                                    <span><i class="fas fa-dot-circle me-1 text-primary"></i> Một đáp án</span>
+                                }
+                                &nbsp;•&nbsp; @q.Score điểm
                             </span>
                         </div>
 
                         <h2 class="h5 fw-semibold mb-4 text-dark" style="line-height: 1.5;">@q.Title</h2>
 
-                        <div class="answers-container">
-                            @foreach (var ans in q.Answers)
-                            {
-                                <label class="answer-option" id="label-ans-@ans.Id" for="opt-@ans.Id">
-                                    <input type="@(isMulti ? "checkbox" : "radio")"
-                                           id="opt-@ans.Id"
-                                           name="q_@q.QuestionId"
-                                           value="@ans.Id"
-                                           onchange="handleAnswerChange(@q.QuestionId, @qNumber, @(isMulti ? "true" : "false"))" />
-                                    <span>@ans.Text</span>
+                        @if (isText)
+                        {
+                            @* CÂU HỎI TỰ LUẬN (ĐIỀN TEXT) *@
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold text-muted small">
+                                    <i class="fas fa-keyboard me-1"></i> Nhập câu trả lời tự luận của bạn:
                                 </label>
-                            }
-                        </div>
+                                <textarea id="text_@q.QuestionId"
+                                          class="form-control"
+                                          rows="5"
+                                          placeholder="Viết nội dung bài làm của bạn tại đây..."
+                                          oninput="handleTextChange(@q.QuestionId, @qNumber)"></textarea>
+                            </div>
+                        }
+                        else if (isMixed)
+                        {
+                            @* BÁN TRẮC NGHIỆM: CHỌN ĐÁP ÁN + VIẾT GIẢI THÍCH/LỜI GIẢI *@
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold text-muted small">
+                                    <i class="fas fa-dot-circle me-1"></i> Bước 1: Chọn phương án trắc nghiệm:
+                                </label>
+                                <div class="answers-container mb-3">
+                                    @foreach (var ans in q.Answers)
+                                    {
+                                        <label class="answer-option" id="label-ans-@ans.Id" for="opt-@ans.Id">
+                                            <input type="radio"
+                                                   id="opt-@ans.Id"
+                                                   name="q_@q.QuestionId"
+                                                   value="@ans.Id"
+                                                   onchange="handleMixedChange(@q.QuestionId, @qNumber)" />
+                                            <span>@ans.Text</span>
+                                        </label>
+                                    }
+                                </div>
+
+                                <label class="form-label fw-semibold text-muted small">
+                                    <i class="fas fa-pen me-1"></i> Bước 2: Viết câu trả lời / giải thích chi tiết:
+                                </label>
+                                <textarea id="text_@q.QuestionId"
+                                          class="form-control"
+                                          rows="4"
+                                          placeholder="Nhập phần diễn giải, bài giải hoặc lập luận của bạn..."
+                                          oninput="handleMixedChange(@q.QuestionId, @qNumber)"></textarea>
+                            </div>
+                        }
+                        else
+                        {
+                            @* TRẮC NGHIỆM THUẦN TÚY (SINGLE / MULTI) *@
+                            <div class="answers-container">
+                                @foreach (var ans in q.Answers)
+                                {
+                                    <label class="answer-option" id="label-ans-@ans.Id" for="opt-@ans.Id">
+                                        <input type="@(isMulti ? "checkbox" : "radio")"
+                                               id="opt-@ans.Id"
+                                               name="q_@q.QuestionId"
+                                               value="@ans.Id"
+                                               onchange="handleAnswerChange(@q.QuestionId, @qNumber, @(isMulti ? "true" : "false"))" />
+                                        <span>@ans.Text</span>
+                                    </label>
+                                }
+                            </div>
+                        }
                     </div>
                 }
             </form>
         </div>
 
-        @* RIGHT: QUESTION PALETTE *@
+        @* RIGHT: QUESTIONS PALETTE *@
         <div class="col-lg-4 col-xl-3">
             <div class="palette-card">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h2 class="h6 fw-bold mb-0"><i class="fas fa-th me-1 text-primary"></i> Bảng câu hỏi</h2>
-                    <span class="badge bg-primary bg-opacity-10 text-primary small" id="answeredCountBadge">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <h2 class="h6 fw-bold mb-0">Danh sách câu hỏi</h2>
+                    <span class="badge bg-primary bg-opacity-10 text-primary" id="answeredCountBadge">
                         Đã làm: 0 / @Model.ExamData.Questions.Count
                     </span>
                 </div>
@@ -238,12 +305,12 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body py-4">
-                <p class="mb-3">Bạn có chắc chắn muốn nộp bài thi không? Sau khi nộp, hệ thống sẽ tự động chấm điểm và kết quả bài thi sẽ được lưu lại.</p>
+                <p class="mb-3">Bạn có chắc chắn muốn nộp bài thi không? Sau khi nộp, hệ thống sẽ ghi nhận bài làm của bạn.</p>
                 <div class="alert alert-info d-flex align-items-center gap-3 mb-0 rounded-3">
                     <i class="fas fa-info-circle fa-2x text-primary"></i>
                     <div>
                         <div class="fw-bold" id="modalAnsweredText">Đã làm: 0 / @Model.ExamData.Questions.Count câu hỏi</div>
-                        <div class="small text-muted" id="modalUnansweredText">Còn lại: @Model.ExamData.Questions.Count câu chưa chọn đáp án</div>
+                        <div class="small text-muted" id="modalUnansweredText">Còn lại: @Model.ExamData.Questions.Count câu chưa trả lời</div>
                     </div>
                 </div>
             </div>
@@ -259,7 +326,8 @@
     <script>
         var remainingSeconds = @Model.ExamData.RemainingSeconds;
         var totalQuestions = @Model.ExamData.Questions.Count;
-        var answersState = {}; // { questionId: [ansId1, ansId2] }
+        // answersState: { qId: { selectedIds: [...], text: "..." } }
+        var answersState = {};
 
         // Start countdown timer
         function updateTimer() {
@@ -287,7 +355,7 @@
         setInterval(updateTimer, 1000);
         updateTimer();
 
-        // Handle selection
+        // 1. Handle Selection (Single/Multi)
         function handleAnswerChange(qId, qNumber, isMulti) {
             var selected = [];
             $('input[name="q_' + qId + '"]:checked').each(function () {
@@ -305,13 +373,59 @@
             });
 
             if (selected.length > 0) {
-                answersState[qId] = selected;
+                answersState[qId] = { selectedIds: selected, text: "" };
                 $('#palette-btn-' + qNumber).addClass('answered');
             } else {
                 delete answersState[qId];
                 $('#palette-btn-' + qNumber).removeClass('answered');
             }
 
+            updateAnsweredBadge();
+        }
+
+        // 2. Handle Text (Tự luận)
+        function handleTextChange(qId, qNumber) {
+            var text = $('#text_' + qId).val().trim();
+            if (text.length > 0) {
+                answersState[qId] = { selectedIds: [], text: text };
+                $('#palette-btn-' + qNumber).addClass('answered');
+            } else {
+                delete answersState[qId];
+                $('#palette-btn-' + qNumber).removeClass('answered');
+            }
+            updateAnsweredBadge();
+        }
+
+        // 3. Handle Mixed (Bán trắc nghiệm)
+        function handleMixedChange(qId, qNumber) {
+            var selected = [];
+            var checked = $('input[name="q_' + qId + '"]:checked').val();
+            if (checked) {
+                selected.push(parseInt(checked));
+            }
+
+            $('input[name="q_' + qId + '"]').each(function () {
+                var label = $('#label-ans-' + $(this).val());
+                if ($(this).is(':checked')) {
+                    label.addClass('selected');
+                } else {
+                    label.removeClass('selected');
+                }
+            });
+
+            var text = $('#text_' + qId).val().trim();
+
+            if (selected.length > 0 || text.length > 0) {
+                answersState[qId] = { selectedIds: selected, text: text };
+                $('#palette-btn-' + qNumber).addClass('answered');
+            } else {
+                delete answersState[qId];
+                $('#palette-btn-' + qNumber).removeClass('answered');
+            }
+            updateAnsweredBadge();
+        }
+
+        function updateAnsweredBadge() {
             var answeredCount = Object.keys(answersState).length;
             $('#answeredCountBadge').text('Đã làm: ' + answeredCount + ' / ' + totalQuestions);
         }

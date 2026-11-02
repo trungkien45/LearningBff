@@ -417,6 +417,15 @@ namespace LearningBff.Migrations
                         .HasColumnType("text")
                         .HasColumnName("ExtraProperties");
 
+                    b.Property<Guid?>("GradedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("GradedTime")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("GradingStatus")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -437,6 +446,9 @@ namespace LearningBff.Migrations
                     b.Property<float>("MaxScore")
                         .HasColumnType("real");
 
+                    b.Property<string>("OverallFeedback")
+                        .HasColumnType("text");
+
                     b.Property<float>("Score")
                         .HasColumnType("real");
 
@@ -456,6 +468,8 @@ namespace LearningBff.Migrations
 
                     b.HasIndex("ExamId");
 
+                    b.HasIndex("GradedByUserId");
+
                     b.HasIndex("UserId");
 
                     b.ToTable("AppExamResults", (string)null);
@@ -469,8 +483,12 @@ namespace LearningBff.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
-                    b.Property<long>("AnswerId")
+                    b.Property<long?>("AnswerId")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("AnswerText")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<float>("EarnedScore")
                         .HasColumnType("real");
@@ -481,11 +499,20 @@ namespace LearningBff.Migrations
                     b.Property<bool>("IsCorrect")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsGraded")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("IsSelected")
                         .HasColumnType("boolean");
 
                     b.Property<long>("QuestionId")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("StudentAnswerText")
+                        .HasColumnType("text");
+
+                    b.Property<string>("TeacherFeedback")
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
@@ -735,6 +762,9 @@ namespace LearningBff.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("GeneralExplanation")
+                        .HasColumnType("text");
+
+                    b.Property<string>("GradingGuide")
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
@@ -2798,6 +2828,10 @@ namespace LearningBff.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Volo.Abp.Identity.IdentityUser", "GradedByUser")
+                        .WithMany()
+                        .HasForeignKey("GradedByUserId");
+
                     b.HasOne("Volo.Abp.Identity.IdentityUser", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
@@ -2805,6 +2839,8 @@ namespace LearningBff.Migrations
                         .IsRequired();
 
                     b.Navigation("Exam");
+
+                    b.Navigation("GradedByUser");
 
                     b.Navigation("User");
                 });
@@ -2814,8 +2850,7 @@ namespace LearningBff.Migrations
                     b.HasOne("LearningBff.Entities.Answer", "Answer")
                         .WithMany("ExamResultAnswers")
                         .HasForeignKey("AnswerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.HasOne("LearningBff.Entities.ExamResult", "ExamResult")
                         .WithMany("ExamResultAnswers")
