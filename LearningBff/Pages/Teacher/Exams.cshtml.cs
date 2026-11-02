@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -199,12 +199,32 @@ public class ExamsModel : AbpPageModel
         }
     }
 
-    public async Task<IActionResult> OnGetExamResultsJsonAsync(long subjectId, long examId)
+    public async Task<IActionResult> OnGetExamResultsJsonAsync(
+        long subjectId,
+        long examId,
+        string? search = null,
+        int page = 1,
+        int pageSize = 10)
     {
         try
         {
-            var (results, totalCount) = await _examTeacherAppService.GetExamResultsOfExamAsync(subjectId, examId, pageSize: 50);
-            return new JsonResult(new { success = true, data = results, totalCount });
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 10;
+            var (results, totalCount) = await _examTeacherAppService.GetExamResultsOfExamAsync(
+                subjectId,
+                examId,
+                searchName: search ?? string.Empty,
+                page: page,
+                pageSize: pageSize);
+
+            return new JsonResult(new
+            {
+                success = true,
+                data = results,
+                totalCount,
+                currentPage = page,
+                pageSize = pageSize
+            });
         }
         catch (Exception ex)
         {

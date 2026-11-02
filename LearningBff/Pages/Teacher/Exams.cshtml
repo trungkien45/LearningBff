@@ -1,4 +1,4 @@
-@page "/Teacher/Exams"
+﻿@page "/Teacher/Exams"
 @model LearningBff.Pages.Teacher.ExamsModel
 @{
     ViewData["Title"] = "Quản lý Đề thi - Giảng viên";
@@ -806,9 +806,17 @@
             </div>
 
             <div class="custom-modal-body">
+                <div class="input-group input-group-sm mb-3">
+                    <span class="input-group-text bg-white">
+                        <i class="fas fa-search text-muted"></i>
+                    </span>
+                    <input type="search" id="examResultsSearch" class="form-control"
+                           placeholder="Tìm học viên theo tên hoặc tài khoản..." autocomplete="off" />
+                </div>
                 <div id="examResultsContainer" style="max-height: 450px; overflow-y: auto;">
                     <div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin"></i> Đang tải kết quả...</div>
                 </div>
+                <div id="examResultsPager" class="d-flex justify-content-between align-items-center gap-2 mt-3 pt-2 border-top"></div>
             </div>
 
             <div class="custom-modal-footer">
@@ -829,6 +837,9 @@
         var availableQuestionsPageSize = 10;
         var activeExamMaxScore = 0;
         var availableQuestionsSearchTimer;
+        var examResultsPage = 1;
+        var examResultsPageSize = 10;
+        var examResultsSearchTimer;
 
         $(document).ready(function () {
             // Khởi tạo Select2 AJAX phân trang
@@ -879,6 +890,13 @@
                 availableQuestionsSearchTimer = setTimeout(function () {
                     availableQuestionsPage = 1;
                     loadExamQuestions(currentSubjectId, activeExamId, availableQuestionsPage);
+                }, 300);
+            });
+
+            $('#examResultsSearch').on('input', function () {
+                clearTimeout(examResultsSearchTimer);
+                examResultsSearchTimer = setTimeout(function () {
+                    loadExamResults(currentSubjectId, activeExamId, 1);
                 }, 300);
             });
 
@@ -1166,15 +1184,45 @@
             currentSubjectId = subjectId;
             activeExamId = examId;
             document.getElementById('examResultsModalTitle').textContent = title;
-            var container = $('#examResultsContainer');
-            container.html('<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin"></i> Đang tải danh sách kết quả...</div>');
+            $('#examResultsSearch').val('');
             openModal('examResultsModal');
+            loadExamResults(subjectId, examId, 1);
+        }
 
-            $.getJSON('?handler=ExamResultsJson', { subjectId: subjectId, examId: examId }, function (res) {
+        function loadExamResults(subjectId, examId, page) {
+            page = page || 1;
+            var container = $('#examResultsContainer');
+            var pager = $('#examResultsPager');
+            container.html('<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin"></i> Đang tải danh sách kết quả...</div>');
+            pager.empty();
+
+            var searchVal = $('#examResultsSearch').val() ? $('#examResultsSearch').val().trim() : '';
+
+            $.getJSON('?handler=ExamResultsJson', {
+                subjectId: subjectId,
+                examId: examId,
+                page: page,
+                pageSize: examResultsPageSize,
+                search: searchVal
+            }, function (res) {
                 if (res && res.success) {
                     var items = res.data;
+                    var totalCount = res.totalCount || 0;
+                    var totalPages = Math.max(1, Math.ceil(totalCount / res.pageSize));
+
+                    if (res.currentPage > totalPages && totalPages > 0) {
+                        loadExamResults(subjectId, examId, totalPages);
+                        return;
+                    }
+                    examResultsPage = res.currentPage;
+
                     if (!items || items.length === 0) {
-                        container.html('<div class="alert alert-info small mb-0"><i class="fas fa-info-circle me-1"></i> Chưa có học viên nào nộp bài thi cho đề này.</div>');
+                        if (searchVal) {
+                            container.html('<div class="alert alert-warning small mb-0"><i class="fas fa-exclamation-triangle me-1"></i> Không tìm thấy học viên nào phù hợp với từ khóa "' + $('<div>').text(searchVal).html() + '".</div>');
+                        } else {
+                            container.html('<div class="alert alert-info small mb-0"><i class="fas fa-info-circle me-1"></i> Chưa có học viên nào nộp bài thi cho đề này.</div>');
+                        }
+                        pager.empty();
                         return;
                     }
 
@@ -1203,7 +1251,30 @@
                     });
                     html += '</tbody></table>';
                     container.html(html);
+
+                    var firstItem = totalCount === 0 ? 0 : (res.currentPage - 1) * res.pageSize + 1;
+                    var lastItem = Math.min(res.currentPage * res.pageSize, totalCount);
+                    var pagerHtml = '<span class="text-muted small">Hiển thị ' + firstItem + ' - ' + lastItem + ' trên ' + totalCount + ' kết quả</span>';
+                    if (totalPages > 1) {
+                        pagerHtml += '<div class="btn-group btn-group-sm" role="group" aria-label="Phân trang kết quả thi">';
+                        pagerHtml += '<button type="button" class="btn btn-outline-secondary" ' +
+                            (res.currentPage <= 1 ? 'disabled' : 'onclick="loadExamResults(currentSubjectId, activeExamId, ' + (res.currentPage - 1) + ')"') +
+                            '><i class="fas fa-chevron-left"></i> Trước</button>';
+                        pagerHtml += '<span class="btn btn-outline-secondary disabled">Trang ' + res.currentPage + ' / ' + totalPages + '</span>';
+                        pagerHtml += '<button type="button" class="btn btn-outline-secondary" ' +
+                            (res.currentPage >= totalPages ? 'disabled' : 'onclick="loadExamResults(currentSubjectId, activeExamId, ' + (res.currentPage + 1) + ')"') +
+                            '>Sau <i class="fas fa-chevron-right"></i></button>';
+                        pagerHtml += '</div>';
+                    }
+                    pager.html(pagerHtml);
+                } else {
+                    var message = res && res.message ? res.message : 'Không thể tải danh sách kết quả.';
+                    container.html('<div class="alert alert-danger small mb-0">' + message + '</div>');
+                    pager.empty();
                 }
+            }).fail(function () {
+                container.html('<div class="alert alert-danger small mb-0">Không thể tải danh sách kết quả. Vui lòng thử lại.</div>');
+                pager.empty();
             });
         }
 
@@ -1334,7 +1405,7 @@
                     if (res && res.success) {
                         alert('Đã lưu kết quả chấm thi thành công!');
                         closeModal('gradeExamModal');
-                        openExamResultsModal(currentSubjectId, gradingExamId, document.getElementById('examResultsModalTitle').textContent);
+                        loadExamResults(currentSubjectId, gradingExamId, examResultsPage);
                     } else {
                         alert(res.message || 'Lỗi khi lưu kết quả chấm.');
                     }
