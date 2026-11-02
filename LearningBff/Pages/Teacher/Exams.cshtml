@@ -176,6 +176,9 @@
         z-index: 1050;
         padding: 1rem;
     }
+    #gradeExamModal {
+        z-index: 1070;
+    }
     .custom-modal-overlay.active {
         display: flex;
     }
@@ -922,9 +925,13 @@
             });
         });
 
+        var modalZIndexBase = 1050;
         function openModal(id) {
             var el = document.getElementById(id);
             if (el) {
+                var activeModals = document.querySelectorAll('.custom-modal-overlay.active');
+                var nextZIndex = modalZIndexBase + (activeModals.length * 20) + 10;
+                el.style.zIndex = nextZIndex;
                 el.classList.add('active');
                 document.body.style.overflow = 'hidden';
             }
@@ -934,7 +941,11 @@
             var el = document.getElementById(id);
             if (el) {
                 el.classList.remove('active');
-                document.body.style.overflow = '';
+                el.style.zIndex = '';
+                var remainingModals = document.querySelectorAll('.custom-modal-overlay.active');
+                if (remainingModals.length === 0) {
+                    document.body.style.overflow = '';
+                }
             }
         }
 
