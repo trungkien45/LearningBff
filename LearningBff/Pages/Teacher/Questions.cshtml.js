@@ -24,6 +24,7 @@
     window.openImportModal = openImportModal;
     window.closeImportModal = closeImportModal;
     window.cancelOrCloseImport = cancelOrCloseImport;
+    window.onImportTypeChanged = onImportTypeChanged;
 
     async function handleSubmit(event) {
         event.preventDefault();
@@ -212,8 +213,35 @@
         document.body.style.overflow = 'hidden';
     }
 
+        function onImportTypeChanged(typeVal) {
+        const link = document.getElementById('importTemplateLink');
+        const text = document.getElementById('importTemplateText');
+        const help = document.getElementById('importTypeHelp');
+        if (!link || !text || !help) return;
+
+        if (typeVal === '3') {
+            link.href = '/templates/question-import-essay-template.xlsx';
+            text.textContent = 'Tải template Tự luận (.xlsx)';
+            help.textContent = 'Hỗ trợ import câu hỏi tự luận kèm biểu điểm và hướng dẫn chấm.';
+        } else if (typeVal === '4') {
+            link.href = '/templates/question-import-mixed-template.xlsx';
+            text.textContent = 'Tải template Bán trắc nghiệm (.xlsx)';
+            help.textContent = 'Hỗ trợ import câu hỏi kết hợp chọn phương án và giải thích.';
+        } else {
+            link.href = '/templates/question-import-template.xlsx';
+            text.textContent = 'Tải template Trắc nghiệm (.xlsx)';
+            help.textContent = 'Hỗ trợ import câu hỏi trắc nghiệm đơn và nhiều đáp án.';
+        }
+    }
+
     function resetImportDialog() {
         if (controller) return;
+
+        const typeSelect = form.querySelector('#importQuestionType');
+        if (typeSelect) {
+            typeSelect.value = '1';
+            onImportTypeChanged('1');
+        }
 
         form.querySelector('#questionImportFile').value = '';
         elements.progressContainer.classList.add('d-none');

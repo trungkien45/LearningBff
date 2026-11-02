@@ -263,6 +263,7 @@ public class QuestionsModel : AbpPageModel
     public async Task<IActionResult> OnPostImportQuestionAsync(
         long subjectId,
         Microsoft.AspNetCore.Http.IFormFile file,
+        int questionType = 1,
         string? search = null,
         int currentPage = 1,
         CancellationToken cancellationToken = default)
@@ -285,7 +286,8 @@ public class QuestionsModel : AbpPageModel
             var result = await _questionBankTeacherAppService.ImportQuestion(new ImportQuestionDto
             {
                 SubjectId = subjectId,
-                File = file
+                File = file,
+                QuestionType = questionType
             }, async progress =>
             {
                 latestProgress = progress;

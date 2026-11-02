@@ -594,20 +594,36 @@
                 <input type="hidden" name="search" value="@Model.Search" />
                 <input type="hidden" name="currentPage" value="@Model.CurrentPage" />
 
-                <div class="custom-modal-body">
+                                <div class="custom-modal-body">
                     <p class="text-muted mb-3">
-                        Chọn tệp Excel theo mẫu để thêm câu hỏi vào môn
+                        Chọn phân loại câu hỏi và tệp Excel theo mẫu tương ứng để thêm câu hỏi vào môn
                         <strong>@Model.CurrentSubject.Name</strong>.
                     </p>
+
+                    <div class="mb-3">
+                        <label for="importQuestionType" class="form-label fw-semibold">
+                            Loại câu hỏi <span class="text-danger">*</span>
+                        </label>
+                        <select id="importQuestionType" name="questionType" class="form-select" onchange="onImportTypeChanged(this.value)">
+                            <option value="1" selected>Trắc nghiệm (1 đáp án & Nhiều đáp án)</option>
+                            <option value="3">Tự luận</option>
+                            <option value="4">Bán trắc nghiệm</option>
+                        </select>
+                        <div class="form-text text-muted" id="importTypeHelp">
+                            Hỗ trợ import câu hỏi trắc nghiệm đơn và nhiều đáp án.
+                        </div>
+                    </div>
+
                     <div class="mb-3">
                         <label for="questionImportFile" class="form-label fw-semibold">Tệp Excel (.xlsx) <span class="text-danger">*</span></label>
                         <input type="file" id="questionImportFile" name="file" class="form-control" accept=".xlsx" required />
                     </div>
-                    <a href="/templates/question-import-template.xlsx" download>
-                        <i class="fas fa-file-excel"></i> Tải template import câu hỏi (Excel)
-                    </a>
 
-                    <div id="importProgressContainer" class="mt-3 d-none" aria-live="polite">
+                    <div class="mb-3">
+                        <a id="importTemplateLink" href="/templates/question-import-template.xlsx" class="btn btn-sm btn-outline-success" download>
+                            <i class="fas fa-file-excel me-1"></i> <span id="importTemplateText">Tải template Trắc nghiệm (.xlsx)</span>
+                        </a>
+                    </div><div id="importProgressContainer" class="mt-3 d-none" aria-live="polite">
                         <div id="importProgressMessage" class="small mb-2">Đang chuẩn bị...</div>
                         <div class="d-flex gap-3 small mb-2">
                             <span class="text-success fw-semibold">Thành công: <span id="importSuccessCount">0</span></span>
