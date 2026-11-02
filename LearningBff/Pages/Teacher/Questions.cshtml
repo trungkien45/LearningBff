@@ -516,9 +516,21 @@
                                         {
                                             <span class="badge-type"><i class="fas fa-dot-circle me-1 text-primary"></i> 1 Đáp án</span>
                                         }
-                                        else
+                                        else if (q.Type == QuestionType.Multi)
                                         {
                                             <span class="badge-type"><i class="fas fa-check-square me-1 text-success"></i> Đa đáp án</span>
+                                        }
+                                        else if (q.Type == QuestionType.Text)
+                                        {
+                                            <span class="badge-type"><i class="fas fa-keyboard me-1 text-warning"></i> Tự luận</span>
+                                        }
+                                        else if (q.Type == QuestionType.Mixed)
+                                        {
+                                            <span class="badge-type"><i class="fas fa-layer-group me-1 text-info"></i> Bán trắc nghiệm</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge-type">@Convert.ToInt32(q.Type)</span>
                                         }
                                     </td>
                                     <td class="text-center fw-bold text-primary">@q.DefaultScore</td>

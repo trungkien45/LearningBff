@@ -1,4 +1,4 @@
-using ClosedXML.Excel;
+﻿using ClosedXML.Excel;
 using LearningBff.Dtos;
 using LearningBff.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -227,7 +227,7 @@ public class QuestionBankTeacherAppService : TeacherBaseAppService
         {
             throw new UserFriendlyException("Tệp được chọn không phải là tệp Excel hợp lệ.");
         }
-                // Tạm thời nhánh 1 là import trắc nghiệm (Single/Multi) hiện tại, mai sẽ viết thêm nhánh 3 và 4
+        // Tạm thời nhánh 1 là import trắc nghiệm (Single/Multi) hiện tại, mai sẽ viết thêm nhánh 3 và 4
         switch (importQuestionDto.QuestionType)
         {
             case 3:
@@ -236,141 +236,140 @@ public class QuestionBankTeacherAppService : TeacherBaseAppService
                 throw new UserFriendlyException("Tính năng import câu hỏi bán trắc nghiệm đang được phát triển.");
             case 1:
             default:
+            {
                 // Nhánh 1: Trắc nghiệm (Multiple Choice)
-                break;
-        }
+                memoryStream.Position = 0;
+                using var workbook = new XLWorkbook(memoryStream);
+                var worksheet = workbook.Worksheet(1);
 
-        memoryStream.Position = 0;
-        using var workbook = new XLWorkbook(memoryStream);
-        var worksheet = workbook.Worksheet(1);
-
-        var result = new ImportQuestionResultDto
-        {
-            ImportedQuestions = 0,
-            Errors = new List<string>()
-        };
-        var rows = worksheet.RowsUsed().Skip(1).ToList();
-        result.TotalQuestions = rows.Count;
-        var processedRows = 0;
-        foreach (var row in rows)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var rowNumber = row.RowNumber();
-
-            async Task ReportProgressAsync()
-            {
-                processedRows++;
-                if (reportProgress != null)
+                var result = new ImportQuestionResultDto
                 {
-                    await reportProgress(new ImportQuestionProgressDto(
-                        "processing",
-                        processedRows,
-                        result.TotalQuestions,
-                        result.ImportedQuestions,
-                        result.Errors.Count,
-                        rowNumber));
-                }
-            }
-
-            var question = row.Cell(1).GetString();
-            var typeStr = row.Cell(2).GetString();
-            if (string.IsNullOrWhiteSpace(question))
-            {
-                result.Errors.Add($"Dòng {rowNumber} không có tiêu đề câu hỏi.");
-                await ReportProgressAsync();
-                continue;
-            }
-            var type = typeStr switch
-            {
-                "1 đáp án" => QuestionType.Single,
-                "nhiều đáp án" => QuestionType.Multi,
-                _ => (QuestionType?)null
-            };
-            if (type == null)
-            {
-                result.Errors.Add($"Dòng {rowNumber} có kiểu câu hỏi không hợp lệ.");
-                await ReportProgressAsync();
-                continue;
-            }
-            var questionEntity = new Question
-            {
-                SubjectId = importQuestionDto.SubjectId,
-                Type = type.Value,
-                Difficulty = QuestionDifficulty.Medium, // Default difficulty, adjust as needed
-                Title = question,
-                DefaultScore = 1 // Default score, adjust as needed
-            };
-            var lastCell = row.LastCellUsed();
-            if (lastCell == null || lastCell.Address.ColumnNumber < 3)
-            {
-                result.Errors.Add($"Dòng {rowNumber} không có đáp án nào.");
-                await ReportProgressAsync();
-                continue;
-            }
-
-            var correctCount = row.Cells(3, lastCell.Address.ColumnNumber)
-                .Count(c => IsCorrectAnswerCell(c));
-
-            if (questionEntity.Type == QuestionType.Single && correctCount != 1)
-            {
-                result.Errors.Add($"Dòng {rowNumber} là câu hỏi loại 'Một đáp án đúng' nhưng có {correctCount} đáp án đúng.");
-                await ReportProgressAsync();
-                continue;
-            }
-
-            if (correctCount == 0)
-            {
-                result.Errors.Add($"Dòng {rowNumber} không có đáp án đúng nào.");
-                await ReportProgressAsync();
-                continue;
-            }
-
-            for (int col = 3; col <= lastCell.Address.ColumnNumber; col++)
-            {
-                var cell = row.Cell(col);
-
-                if (cell.IsEmpty())
-                    continue;
-
-                var answerText = cell.GetString();
-                if (string.IsNullOrWhiteSpace(answerText))
-                {
-                    result.Errors.Add($"Dòng {rowNumber}, cột {col} có đáp án trống.");
-                    continue;
-                }
-                var answerEntity = new Answer
-                {
-                    Text = answerText,
-                    IsCorrect = IsCorrectAnswerCell(cell),
-                    Order = col - 3 // Assuming answers start from column 3
+                    ImportedQuestions = 0,
+                    Errors = new List<string>()
                 };
+                var rows = worksheet.RowsUsed().Skip(1).ToList();
+                result.TotalQuestions = rows.Count;
+                var processedRows = 0;
+                foreach (var row in rows)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var rowNumber = row.RowNumber();
 
-                questionEntity.Answers.Add(answerEntity);
+                    async Task ReportProgressAsync()
+                    {
+                        processedRows++;
+                        if (reportProgress != null)
+                        {
+                            await reportProgress(new ImportQuestionProgressDto(
+                                "processing",
+                                processedRows,
+                                result.TotalQuestions,
+                                result.ImportedQuestions,
+                                result.Errors.Count,
+                                rowNumber));
+                        }
+                    }
+
+                    var question = row.Cell(1).GetString();
+                    var typeStr = row.Cell(2).GetString();
+                    if (string.IsNullOrWhiteSpace(question))
+                    {
+                        result.Errors.Add($"Dòng {rowNumber} không có tiêu đề câu hỏi.");
+                        await ReportProgressAsync();
+                        continue;
+                    }
+                    var type = typeStr switch
+                    {
+                        "1 đáp án" => QuestionType.Single,
+                        "nhiều đáp án" => QuestionType.Multi,
+                        _ => (QuestionType?)null
+                    };
+                    if (type == null)
+                    {
+                        result.Errors.Add($"Dòng {rowNumber} có kiểu câu hỏi không hợp lệ.");
+                        await ReportProgressAsync();
+                        continue;
+                    }
+                    var questionEntity = new Question
+                    {
+                        SubjectId = importQuestionDto.SubjectId,
+                        Type = type.Value,
+                        Difficulty = QuestionDifficulty.Medium, // Default difficulty, adjust as needed
+                        Title = question,
+                        DefaultScore = 1 // Default score, adjust as needed
+                    };
+                    var lastCell = row.LastCellUsed();
+                    if (lastCell == null || lastCell.Address.ColumnNumber < 3)
+                    {
+                        result.Errors.Add($"Dòng {rowNumber} không có đáp án nào.");
+                        await ReportProgressAsync();
+                        continue;
+                    }
+
+                    var correctCount = row.Cells(3, lastCell.Address.ColumnNumber)
+                        .Count(c => IsCorrectAnswerCell(c));
+
+                    if (questionEntity.Type == QuestionType.Single && correctCount != 1)
+                    {
+                        result.Errors.Add($"Dòng {rowNumber} là câu hỏi loại 'Một đáp án đúng' nhưng có {correctCount} đáp án đúng.");
+                        await ReportProgressAsync();
+                        continue;
+                    }
+
+                    if (correctCount == 0)
+                    {
+                        result.Errors.Add($"Dòng {rowNumber} không có đáp án đúng nào.");
+                        await ReportProgressAsync();
+                        continue;
+                    }
+
+                    for (int col = 3; col <= lastCell.Address.ColumnNumber; col++)
+                    {
+                        var cell = row.Cell(col);
+
+                        if (cell.IsEmpty())
+                            continue;
+
+                        var answerText = cell.GetString();
+                        if (string.IsNullOrWhiteSpace(answerText))
+                        {
+                            result.Errors.Add($"Dòng {rowNumber}, cột {col} có đáp án trống.");
+                            continue;
+                        }
+                        var answerEntity = new Answer
+                        {
+                            Text = answerText,
+                            IsCorrect = IsCorrectAnswerCell(cell),
+                            Order = col - 3 // Assuming answers start from column 3
+                        };
+
+                        questionEntity.Answers.Add(answerEntity);
+                    }
+
+                    if (questionEntity.Answers.Count == 0)
+                    {
+                        result.Errors.Add($"Dòng {rowNumber} không có đáp án hợp lệ nào.");
+                        await ReportProgressAsync();
+                        continue;
+                    }
+
+                    using (var unitOfWork = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true))
+                    {
+                        await _questionRepository.InsertAsync(
+                            questionEntity,
+                            autoSave: true,
+                            cancellationToken: cancellationToken);
+                        await unitOfWork.CompleteAsync(cancellationToken);
+                    }
+
+                    result.ImportedQuestions++;
+                    await ReportProgressAsync();
+                }
+
+                return result;
             }
-
-            if (questionEntity.Answers.Count == 0)
-            {
-                result.Errors.Add($"Dòng {rowNumber} không có đáp án hợp lệ nào.");
-                await ReportProgressAsync();
-                continue;
-            }
-
-            using (var unitOfWork = _unitOfWorkManager.Begin(requiresNew: true, isTransactional: true))
-            {
-                await _questionRepository.InsertAsync(
-                    questionEntity,
-                    autoSave: true,
-                    cancellationToken: cancellationToken);
-                await unitOfWork.CompleteAsync(cancellationToken);
-            }
-
-            result.ImportedQuestions++;
-            await ReportProgressAsync();
         }
-
-        return result;
     }
-
     public static bool IsExcelStream(Stream stream)
     {
         if (!stream.CanRead || !stream.CanSeek)
