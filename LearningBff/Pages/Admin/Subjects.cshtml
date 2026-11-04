@@ -1,4 +1,4 @@
-@page "/Admin/Subjects"
+﻿@page "/Admin/Subjects"
 @model LearningBff.Pages.Admin.SubjectsModel
 @{
     ViewData["Title"] = "Quản lý Môn học & Giảng viên (Admin)";
@@ -694,6 +694,7 @@
 
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Phân công Giảng viên phụ trách</label>
+                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Lọc nhanh giảng viên..." oninput="filterTeacherCheckboxList(this, '#createSubjectModal .teacher-check-item')">
                     <div class="teacher-select-box">
                         @if (!Model.AvailableTeachers.Any())
                         {
@@ -761,6 +762,7 @@
 
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Giảng viên phụ trách</label>
+                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Lọc nhanh giảng viên..." oninput="filterTeacherCheckboxList(this, '#editSubjectModal .teacher-check-item')">
                     <div class="teacher-select-box">
                         @foreach (var t in Model.AvailableTeachers)
                         {
@@ -795,7 +797,7 @@
 
 <!-- ==================== MODAL 3: GÁN NHANH GIẢNG VIÊN ==================== -->
 <div id="assignTeacherModal" class="custom-modal-overlay">
-    <div class="custom-modal-card">
+    <div class="custom-modal-card" style="max-width: 620px;">
         <div class="custom-modal-header">
             <h5 class="custom-modal-title">
                 <i class="fas fa-user-plus text-primary"></i>
@@ -803,31 +805,64 @@
             </h5>
             <button type="button" class="custom-modal-close" onclick="closeModal('assignTeacherModal')">&times;</button>
         </div>
-        <form method="post" asp-page-handler="AssignTeachers">
+        <form method="post" asp-page-handler="AssignTeachers" id="assignTeachersForm">
             <input type="hidden" name="subjectId" id="assignSubjectId">
             <input type="hidden" name="search" value="@Model.Search">
             <input type="hidden" name="currentPage" value="@Model.CurrentPage">
+            
+            <!-- Hidden inputs container for all selected teacher IDs -->
+            <div id="assignHiddenTeacherInputs"></div>
+
             <div class="custom-modal-body">
-                <p class="mb-3">Môn học: <strong id="assignSubjectName" class="text-primary fs-6"></strong></p>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 pb-2 border-bottom">
+                    <div>
+                        <span class="text-muted small">Môn học:</span>
+                        <div id="assignSubjectName" class="text-primary fw-bold fs-6"></div>
+                    </div>
+                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2.5 py-1.5" style="font-size: 0.85rem;">
+                        <i class="fas fa-user-check me-1"></i>Đã chọn: <strong id="assignSelectedCount">0</strong> giảng viên
+                    </span>
+                </div>
+
+                <!-- Tìm kiếm giảng viên -->
                 <div class="mb-3">
-                    <label class="form-label fw-semibold">Chọn giảng viên chịu trách nhiệm giảng dạy:</label>
-                    <div class="teacher-select-box">
-                        @foreach (var t in Model.AvailableTeachers)
-                        {
-                            <label class="teacher-check-item">
-                                <input type="checkbox" name="teacherIds" value="@t.Id" class="form-check-input me-2 assign-teacher-chk">
-                                <div class="small">
-                                    <div class="fw-semibold">@t.DisplayName</div>
-                                    @if (!string.IsNullOrEmpty(t.Email))
-                                    {
-                                        <div class="text-muted" style="font-size: 0.75rem;">@t.Email</div>
-                                    }
-                                </div>
-                            </label>
-                        }
+                    <label class="form-label fw-semibold small mb-1">Tìm kiếm giảng viên:</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-white">
+                            <i class="fas fa-search text-muted"></i>
+                        </span>
+                        <input type="search" id="assignTeacherSearch" class="form-control"
+                               placeholder="Tìm theo tên, email hoặc tài khoản..." autocomplete="off">
+                        <button type="button" class="btn btn-outline-secondary" id="clearAssignSearchBtn" style="display: none;" onclick="clearAssignSearch()">
+                            <i class="fas fa-times"></i>
+                        </button>
                     </div>
                 </div>
+
+                <!-- Danh sách giảng viên -->
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label fw-semibold small mb-0">Danh sách giảng viên:</label>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-link btn-sm text-decoration-none p-0 me-3" style="font-size: 0.8rem;" onclick="toggleSelectAllPage(true)">
+                                <i class="fas fa-check-double me-1"></i>Chọn trang này
+                            </button>
+                            <button type="button" class="btn btn-link btn-sm text-decoration-none text-danger p-0" style="font-size: 0.8rem;" onclick="clearAllAssignedTeachers()">
+                                <i class="fas fa-trash-alt me-1"></i>Bỏ chọn tất cả
+                            </button>
+                        </div>
+                    </div>
+                    <div id="assignTeacherListContainer" class="teacher-select-box" style="min-height: 240px; max-height: 280px; overflow-y: auto;">
+                        <!-- Dynamic items -->
+                    </div>
+                </div>
+
+                <!-- Phân trang -->
+                <div id="assignTeacherPager" class="d-flex justify-content-between align-items-center gap-2 mt-2 pt-2 border-top">
+                    <!-- Dynamic pager -->
+                </div>
             </div>
+
             <div class="custom-modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="closeModal('assignTeacherModal')">Hủy bỏ</button>
                 <button type="submit" class="btn btn-primary fw-semibold">
@@ -918,16 +953,186 @@
         openModal('editSubjectModal');
     }
 
+    let assignSelectedTeacherIds = new Set();
+    let assignSearchKeyword = '';
+    let assignCurrentPage = 1;
+    const assignPageSize = 6;
+    let assignSearchTimer;
+
     function openAssignModal(id, name, teacherIds) {
         document.getElementById('assignSubjectId').value = id;
         document.getElementById('assignSubjectName').textContent = name;
 
-        var checkboxes = document.querySelectorAll('.assign-teacher-chk');
-        checkboxes.forEach(function (chk) {
-            chk.checked = teacherIds && teacherIds.includes(chk.value);
-        });
+        // Lưu danh sách id giảng viên đang được phân công (chuẩn hóa về lowercase string)
+        assignSelectedTeacherIds = new Set();
+        if (Array.isArray(teacherIds)) {
+            teacherIds.forEach(function (tid) {
+                if (tid) assignSelectedTeacherIds.add(String(tid).toLowerCase());
+            });
+        }
 
+        assignSearchKeyword = '';
+        var searchInput = document.getElementById('assignTeacherSearch');
+        if (searchInput) searchInput.value = '';
+        var clearBtn = document.getElementById('clearAssignSearchBtn');
+        if (clearBtn) clearBtn.style.display = 'none';
+
+        assignCurrentPage = 1;
+        syncAssignHiddenInputs();
         openModal('assignTeacherModal');
+        loadAvailableTeachers(1);
+    }
+
+    function loadAvailableTeachers(page) {
+        assignCurrentPage = page || 1;
+        var container = document.getElementById('assignTeacherListContainer');
+        var pager = document.getElementById('assignTeacherPager');
+        if (!container) return;
+
+        container.innerHTML = '<div class="text-center py-4 text-muted small"><i class="fas fa-spinner fa-spin fa-2x mb-2 d-block text-primary opacity-75"></i>Đang tải danh sách giảng viên...</div>';
+        if (pager) pager.innerHTML = '';
+
+        // Cập nhật badge số lượng đã chọn
+        var countEl = document.getElementById('assignSelectedCount');
+        if (countEl) countEl.textContent = assignSelectedTeacherIds.size;
+
+        $.getJSON('?handler=AvailableTeachersJson', {
+            search: assignSearchKeyword,
+            page: assignCurrentPage,
+            pageSize: assignPageSize
+        }, function (res) {
+            if (res && res.success) {
+                var items = res.items || [];
+                var totalCount = res.totalCount || 0;
+                var totalPages = Math.max(1, Math.ceil(totalCount / res.pageSize));
+
+                if (res.currentPage > totalPages && totalPages > 0) {
+                    loadAvailableTeachers(totalPages);
+                    return;
+                }
+                assignCurrentPage = res.currentPage;
+
+                if (items.length === 0) {
+                    if (assignSearchKeyword) {
+                        container.innerHTML = '<div class="text-center py-4 text-muted small"><i class="fas fa-search mb-2 d-block fa-2x text-muted opacity-50"></i>Không tìm thấy giảng viên nào khớp với từ khóa "<strong>' + escapeHtml(assignSearchKeyword) + '</strong>".</div>';
+                    } else {
+                        container.innerHTML = '<div class="text-center py-4 text-muted small"><i class="fas fa-user-slash mb-2 d-block fa-2x text-muted opacity-50"></i>Chưa có người dùng nào mang role Teacher trong hệ thống.</div>';
+                    }
+                    if (pager) pager.innerHTML = '<span class="text-muted small">0 giảng viên</span>';
+                    return;
+                }
+
+                var html = '';
+                items.forEach(function (t) {
+                    var tid = String(t.id || t.Id).toLowerCase();
+                    var isChecked = assignSelectedTeacherIds.has(tid);
+                    var displayName = t.displayName || t.DisplayName || t.userName || t.UserName || 'Chưa đặt tên';
+                    var email = t.email || t.Email || '';
+                    var username = t.userName || t.UserName || '';
+
+                    html += '<label class="teacher-check-item' + (isChecked ? ' bg-primary bg-opacity-10 border border-primary border-opacity-25' : '') + '">';
+                    html += '  <input type="checkbox" value="' + tid + '" class="form-check-input me-2 assign-teacher-chk" ' + (isChecked ? 'checked' : '') + ' onchange="onAssignTeacherCheckChanged(this, \'' + tid + '\')">';
+                    html += '  <div class="small flex-grow-1">';
+                    html += '    <div class="fw-semibold text-dark">' + escapeHtml(displayName) + '</div>';
+                    html += '    <div class="text-muted" style="font-size: 0.75rem;">';
+                    if (email) {
+                        html += '<i class="fas fa-envelope me-1"></i>' + escapeHtml(email) + ' &bull; ';
+                    }
+                    html += '<i class="fas fa-user me-1"></i>' + escapeHtml(username);
+                    html += '    </div>';
+                    html += '  </div>';
+                    html += '</label>';
+                });
+                container.innerHTML = html;
+
+                // Render phân trang
+                if (pager) {
+                    var firstItem = totalCount === 0 ? 0 : (assignCurrentPage - 1) * res.pageSize + 1;
+                    var lastItem = Math.min(assignCurrentPage * res.pageSize, totalCount);
+                    var pagerHtml = '<span class="text-muted small">Hiển thị <strong>' + firstItem + ' - ' + lastItem + '</strong> trên <strong>' + totalCount + '</strong> giảng viên</span>';
+                    if (totalPages > 1) {
+                        pagerHtml += '<div class="btn-group btn-group-sm" role="group" aria-label="Phân trang giảng viên">';
+                        pagerHtml += '<button type="button" class="btn btn-outline-secondary" ' + (assignCurrentPage <= 1 ? 'disabled' : 'onclick="loadAvailableTeachers(' + (assignCurrentPage - 1) + ')"') + '><i class="fas fa-chevron-left"></i> Trước</button>';
+                        pagerHtml += '<span class="btn btn-outline-secondary disabled">Trang ' + assignCurrentPage + ' / ' + totalPages + '</span>';
+                        pagerHtml += '<button type="button" class="btn btn-outline-secondary" ' + (assignCurrentPage >= totalPages ? 'disabled' : 'onclick="loadAvailableTeachers(' + (assignCurrentPage + 1) + ')"') + '>Sau <i class="fas fa-chevron-right"></i></button>';
+                        pagerHtml += '</div>';
+                    }
+                    pager.innerHTML = pagerHtml;
+                }
+            } else {
+                container.innerHTML = '<div class="alert alert-danger small mb-0">' + (res && res.message ? res.message : 'Không thể tải danh sách giảng viên.') + '</div>';
+            }
+        }).fail(function () {
+            container.innerHTML = '<div class="alert alert-danger small mb-0">Không thể kết nối máy chủ để tải danh sách giảng viên. Vui lòng thử lại.</div>';
+        });
+    }
+
+    function onAssignTeacherCheckChanged(chk, id) {
+        var tid = String(id).toLowerCase();
+        if (chk.checked) {
+            assignSelectedTeacherIds.add(tid);
+            chk.closest('.teacher-check-item')?.classList.add('bg-primary', 'bg-opacity-10', 'border', 'border-primary', 'border-opacity-25');
+        } else {
+            assignSelectedTeacherIds.delete(tid);
+            chk.closest('.teacher-check-item')?.classList.remove('bg-primary', 'bg-opacity-10', 'border', 'border-primary', 'border-opacity-25');
+        }
+        var countEl = document.getElementById('assignSelectedCount');
+        if (countEl) countEl.textContent = assignSelectedTeacherIds.size;
+        syncAssignHiddenInputs();
+    }
+
+    function syncAssignHiddenInputs() {
+        var container = document.getElementById('assignHiddenTeacherInputs');
+        if (!container) return;
+        container.innerHTML = '';
+        assignSelectedTeacherIds.forEach(function (id) {
+            var inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = 'teacherIds';
+            inp.value = id;
+            container.appendChild(inp);
+        });
+    }
+
+    function clearAssignSearch() {
+        var searchInput = document.getElementById('assignTeacherSearch');
+        if (searchInput) {
+            searchInput.value = '';
+            searchInput.focus();
+        }
+        var clearBtn = document.getElementById('clearAssignSearchBtn');
+        if (clearBtn) clearBtn.style.display = 'none';
+        assignSearchKeyword = '';
+        loadAvailableTeachers(1);
+    }
+
+    function toggleSelectAllPage(checked) {
+        var checkboxes = document.querySelectorAll('#assignTeacherListContainer .assign-teacher-chk');
+        checkboxes.forEach(function (chk) {
+            chk.checked = checked;
+            onAssignTeacherCheckChanged(chk, chk.value);
+        });
+    }
+
+    function clearAllAssignedTeachers() {
+        if (assignSelectedTeacherIds.size === 0) return;
+        if (!confirm('Bạn có chắc muốn bỏ chọn tất cả các giảng viên đã phân công?')) return;
+        assignSelectedTeacherIds.clear();
+        loadAvailableTeachers(assignCurrentPage);
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        var map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+        return text.replace(/[&<>"']/g, function (m) { return map[m]; });
+    }
+
+    function filterTeacherCheckboxList(input, selector) {
+        var kw = (input.value || '').trim().toLowerCase();
+        document.querySelectorAll(selector).forEach(function (item) {
+            var text = (item.textContent || '').toLowerCase();
+            item.style.display = (kw === '' || text.indexOf(kw) !== -1) ? '' : 'none';
+        });
     }
 
     function openDeleteModal(id, name) {
@@ -939,6 +1144,21 @@
 
     // Static backdrop: Bấm ra ngoài vùng modal KHÔNG tắt modal (chỉ đóng khi nhấn close (&times;), Hủy/Cancel, hoặc Lưu/Ok)
     document.addEventListener('DOMContentLoaded', function () {
+        var assignSearchInput = document.getElementById('assignTeacherSearch');
+        if (assignSearchInput) {
+            var searchTimer;
+            assignSearchInput.addEventListener('input', function () {
+                clearTimeout(searchTimer);
+                var val = this.value;
+                var clearBtn = document.getElementById('clearAssignSearchBtn');
+                if (clearBtn) clearBtn.style.display = val ? 'block' : 'none';
+
+                searchTimer = setTimeout(function () {
+                    assignSearchKeyword = val;
+                    loadAvailableTeachers(1);
+                }, 300);
+            });
+        }
         document.querySelectorAll('.custom-modal-overlay').forEach(function (overlay) {
             overlay.addEventListener('click', function (e) {
                 if (e.target === overlay) {

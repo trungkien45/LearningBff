@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -16,13 +16,19 @@ public class SubjectAppService : LearningBffAppService
 {
     private readonly IRepository<Subject, long> _subjectRepository;
     private readonly IdentityUserManager _userManager;
+    private readonly IRepository<IdentityUser, Guid> _userRepository;
+    private readonly IRepository<IdentityRole, Guid> _roleRepository;
 
     public SubjectAppService(
         IRepository<Subject, long> subjectRepository,
-        IdentityUserManager userManager)
+        IdentityUserManager userManager,
+        IRepository<IdentityUser, Guid> userRepository,
+        IRepository<IdentityRole, Guid> roleRepository)
     {
         _subjectRepository = subjectRepository;
         _userManager = userManager;
+        _userRepository = userRepository;
+        _roleRepository = roleRepository;
     }
 
     /// <summary>
@@ -156,27 +162,80 @@ public class SubjectAppService : LearningBffAppService
     }
 
     /// <summary>
-    /// Lấy danh sách giảng viên để phục vụ gán môn học
+    /// Lấy danh sách giảng viên để phục vụ gán môn học bằng IQueryable
     /// </summary>
     public async Task<List<TeacherSimpleDto>> GetAvailableTeachersAsync()
     {
-        var teachers = await _userManager.GetUsersInRoleAsync("teacher");
-        //var admins = await _userManager.GetUsersInRoleAsync("admin");
-        //var combined = teachers.Concat(admins).DistinctBy(u => u.Id).ToList();
-
-        // Nếu chưa có user gán role, lấy tối đa 50 user hoạt động để chọn
-        //if (!combined.Any())
-        //{
-        //    combined = await _db.Users.AsNoTracking().Where(u => u.IsActive).Take(50).ToListAsync();
-        //}
-
-        return teachers.Select(u => new TeacherSimpleDto
+        var roleQuery = await _roleRepository.GetQueryableAsync();
+        var teacherRole = await roleQuery.FirstOrDefaultAsync(r => r.NormalizedName == "TEACHER");
+        if (teacherRole == null)
         {
-            Id = u.Id,
-            UserName = u.UserName,
-            Name = u.Name,
-            Surname = u.Surname,
-            Email = u.Email
-        }).OrderBy(t => t.Name ?? t.UserName).ToList();
+            return new List<TeacherSimpleDto>();
+        }
+
+        var userQuery = await _userRepository.GetQueryableAsync();
+        return await userQuery
+            .Where(u => u.IsActive && u.Roles.Any(r => r.RoleId == teacherRole.Id))
+            .OrderBy(u => u.Name ?? u.UserName)
+            .Select(u => new TeacherSimpleDto
+            {
+                Id = u.Id,
+                UserName = u.UserName,
+                Name = u.Name,
+                Surname = u.Surname,
+                Email = u.Email
+            })
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Lấy danh sách giảng viên có tìm kiếm và phân trang bằng IQueryable ở Database
+    /// </summary>
+    public async Task<(List<TeacherSimpleDto> Items, int TotalCount)> GetAvailableTeachersPagedAsync(
+        string? search = null,
+        int page = 1,
+        int pageSize = 6)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 6;
+
+        var roleQuery = await _roleRepository.GetQueryableAsync();
+        var teacherRole = await roleQuery.FirstOrDefaultAsync(r => r.NormalizedName == "TEACHER");
+        if (teacherRole == null)
+        {
+            return (new List<TeacherSimpleDto>(), 0);
+        }
+
+        var userQuery = await _userRepository.GetQueryableAsync();
+        var query = userQuery
+            .Where(u => u.IsActive && u.Roles.Any(r => r.RoleId == teacherRole.Id));
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            query = query.Where(u =>
+                (u.Name != null && u.Name.ToLower().Contains(term)) ||
+                (u.Surname != null && u.Surname.ToLower().Contains(term)) ||
+                (u.UserName.ToLower().Contains(term)) ||
+                (u.Email != null && u.Email.ToLower().Contains(term)));
+        }
+
+        var totalCount = await query.CountAsync();
+
+        var pagedItems = await query
+            .OrderBy(u => u.Name ?? u.UserName)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(u => new TeacherSimpleDto
+            {
+                Id = u.Id,
+                UserName = u.UserName,
+                Name = u.Name,
+                Surname = u.Surname,
+                Email = u.Email
+            })
+            .ToListAsync();
+
+        return (pagedItems, totalCount);
     }
 }
