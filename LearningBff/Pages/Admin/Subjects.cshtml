@@ -577,7 +577,7 @@
                                         </button>
                                         <!-- Sửa môn học -->
                                         <button type="button" class="btn btn-outline-secondary"
-                                                onclick="openEditModal(@sub.Id, '@Html.Raw(sub.Name.Replace("'", "\\'"))', '@Html.Raw((sub.Description ?? "").Replace("'", "\\'"))', @sub.IsActive.ToString().ToLower(), @teacherIdsJson)"
+                                                onclick="openEditModal(@sub.Id, '@Html.Raw(sub.Name.Replace("'", "\\'"))', '@Html.Raw((sub.Description ?? "").Replace("'", "\\'"))', @sub.IsActive.ToString().ToLower())"
                                                 title="Sửa thông tin môn học">
                                             <i class="fas fa-edit"></i>
                                         </button>
@@ -692,32 +692,9 @@
                     <textarea name="description" id="createSubjectDesc" class="form-control" rows="3" placeholder="Giới thiệu nội dung, yêu cầu và kiến thức môn học..."></textarea>
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label fw-semibold">Phân công Giảng viên phụ trách</label>
-                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Lọc nhanh giảng viên..." oninput="filterTeacherCheckboxList(this, '#createSubjectModal .teacher-check-item')">
-                    <div class="teacher-select-box">
-                        @if (!Model.AvailableTeachers.Any())
-                        {
-                            <div class="text-muted small py-2 text-center">Chưa có người dùng nào mang role Teacher.</div>
-                        }
-                        else
-                        {
-                            @foreach (var t in Model.AvailableTeachers)
-                            {
-                                <label class="teacher-check-item">
-                                    <input type="checkbox" name="teacherIds" value="@t.Id" class="form-check-input me-2">
-                                    <div class="small">
-                                        <div class="fw-semibold">@t.DisplayName</div>
-                                        @if (!string.IsNullOrEmpty(t.Email))
-                                        {
-                                            <div class="text-muted" style="font-size: 0.75rem;">@t.Email</div>
-                                        }
-                                    </div>
-                                </label>
-                            }
-                        }
-                    </div>
-                    <div class="form-text small text-muted">Có thể chọn nhiều giảng viên cùng chịu trách nhiệm giảng dạy môn học này.</div>
+                <div class="alert alert-light border small text-muted mb-3">
+                    <i class="fas fa-info-circle text-primary me-1"></i>
+                    Sau khi tạo môn học, bạn có thể nhấn nút <strong><i class="fas fa-user-plus text-primary"></i> Gán GV</strong> trên danh sách để phân công giảng viên phụ trách môn học này.
                 </div>
 
                 <div class="form-check form-switch mt-3">
@@ -760,24 +737,9 @@
                     <textarea name="description" id="editSubjectDesc" class="form-control" rows="3"></textarea>
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label fw-semibold">Giảng viên phụ trách</label>
-                    <input type="search" class="form-control form-control-sm mb-2" placeholder="Lọc nhanh giảng viên..." oninput="filterTeacherCheckboxList(this, '#editSubjectModal .teacher-check-item')">
-                    <div class="teacher-select-box">
-                        @foreach (var t in Model.AvailableTeachers)
-                        {
-                            <label class="teacher-check-item">
-                                <input type="checkbox" name="teacherIds" value="@t.Id" class="form-check-input me-2 edit-teacher-chk">
-                                <div class="small">
-                                    <div class="fw-semibold">@t.DisplayName</div>
-                                    @if (!string.IsNullOrEmpty(t.Email))
-                                    {
-                                        <div class="text-muted" style="font-size: 0.75rem;">@t.Email</div>
-                                    }
-                                </div>
-                            </label>
-                        }
-                    </div>
+                <div class="alert alert-light border small text-muted mb-3">
+                    <i class="fas fa-info-circle text-primary me-1"></i>
+                    Để thay đổi danh sách giảng viên phụ trách, vui lòng sử dụng chức năng <strong><i class="fas fa-user-plus text-primary"></i> Gán GV</strong> ở danh sách môn học.
                 </div>
 
                 <div class="form-check form-switch mt-3">
@@ -930,25 +892,15 @@
         var activeInput = document.getElementById('createSubjectIsActive');
         if (activeInput) activeInput.checked = true;
 
-        var checkboxes = document.querySelectorAll('#createSubjectModal input[type="checkbox"][name="teacherIds"]');
-        checkboxes.forEach(function (chk) {
-            chk.checked = false;
-        });
-
         openModal('createSubjectModal');
         if (nameInput) nameInput.focus();
     }
 
-    function openEditModal(id, name, description, isActive, teacherIds) {
+    function openEditModal(id, name, description, isActive) {
         document.getElementById('editSubjectId').value = id;
         document.getElementById('editSubjectName').value = name;
         document.getElementById('editSubjectDesc').value = description || '';
         document.getElementById('editSubjectIsActive').checked = isActive;
-
-        var checkboxes = document.querySelectorAll('.edit-teacher-chk');
-        checkboxes.forEach(function (chk) {
-            chk.checked = teacherIds && teacherIds.includes(chk.value);
-        });
 
         openModal('editSubjectModal');
     }
@@ -1085,6 +1037,8 @@
         var container = document.getElementById('assignHiddenTeacherInputs');
         if (!container) return;
         container.innerHTML = '';
+
+        // Nếu không có giáo viên nào được chọn còn gửi một input ẩn để báo hiệu "xóa tất cả"
         assignSelectedTeacherIds.forEach(function (id) {
             var inp = document.createElement('input');
             inp.type = 'hidden';
@@ -1127,13 +1081,7 @@
         return text.replace(/[&<>"']/g, function (m) { return map[m]; });
     }
 
-    function filterTeacherCheckboxList(input, selector) {
-        var kw = (input.value || '').trim().toLowerCase();
-        document.querySelectorAll(selector).forEach(function (item) {
-            var text = (item.textContent || '').toLowerCase();
-            item.style.display = (kw === '' || text.indexOf(kw) !== -1) ? '' : 'none';
-        });
-    }
+
 
     function openDeleteModal(id, name) {
         document.getElementById('deleteSubjectId').value = id;

@@ -161,32 +161,7 @@ public class SubjectAppService : LearningBffAppService
         };
     }
 
-    /// <summary>
-    /// Lấy danh sách giảng viên để phục vụ gán môn học bằng IQueryable
-    /// </summary>
-    public async Task<List<TeacherSimpleDto>> GetAvailableTeachersAsync()
-    {
-        var roleQuery = await _roleRepository.GetQueryableAsync();
-        var teacherRole = await roleQuery.FirstOrDefaultAsync(r => r.NormalizedName == "TEACHER");
-        if (teacherRole == null)
-        {
-            return new List<TeacherSimpleDto>();
-        }
 
-        var userQuery = await _userRepository.GetQueryableAsync();
-        return await userQuery
-            .Where(u => u.IsActive && u.Roles.Any(r => r.RoleId == teacherRole.Id))
-            .OrderBy(u => u.Name ?? u.UserName)
-            .Select(u => new TeacherSimpleDto
-            {
-                Id = u.Id,
-                UserName = u.UserName,
-                Name = u.Name,
-                Surname = u.Surname,
-                Email = u.Email
-            })
-            .ToListAsync();
-    }
 
     /// <summary>
     /// Lấy danh sách giảng viên có tìm kiếm và phân trang bằng IQueryable ở Database

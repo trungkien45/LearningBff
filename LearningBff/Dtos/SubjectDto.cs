@@ -34,7 +34,7 @@ public class CreateSubjectDto
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public bool IsActive { get; set; } = true;
-    public List<Guid> TeacherIds { get; set; } = new();
+    public List<Guid>? TeacherIds { get; set; }
 }
 
 public class UpdateSubjectDto
@@ -42,7 +42,7 @@ public class UpdateSubjectDto
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public bool IsActive { get; set; } = true;
-    public List<Guid> TeacherIds { get; set; } = new();
+    public List<Guid>? TeacherIds { get; set; }
 }
 
 public class AssignTeachersDto

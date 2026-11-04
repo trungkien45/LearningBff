@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -25,7 +26,6 @@ public class SubjectsModel : AbpPageModel
     }
 
     public List<SubjectDto> Subjects { get; set; } = new();
-    public List<TeacherSimpleDto> AvailableTeachers { get; set; } = new();
 
     [BindProperty(SupportsGet = true)]
     public string? Search { get; set; }
@@ -118,7 +118,6 @@ public class SubjectsModel : AbpPageModel
         string name,
         string? description,
         bool isActive = false,
-        List<Guid>? teacherIds = null,
         string? search = null)
     {
         try
@@ -128,7 +127,7 @@ public class SubjectsModel : AbpPageModel
                 Name = name,
                 Description = description,
                 IsActive = isActive,
-                TeacherIds = teacherIds ?? new List<Guid>()
+                TeacherIds = new List<Guid>()
             });
 
             SuccessMessage = $"Đã tạo thành công môn học '{name.Trim()}'.";
@@ -146,7 +145,6 @@ public class SubjectsModel : AbpPageModel
         string name,
         string? description,
         bool isActive = false,
-        List<Guid>? teacherIds = null,
         string? search = null,
         int currentPage = 1)
     {
@@ -157,7 +155,7 @@ public class SubjectsModel : AbpPageModel
                 Name = name,
                 Description = description,
                 IsActive = isActive,
-                TeacherIds = teacherIds ?? new List<Guid>()
+                TeacherIds = null
             });
 
             SuccessMessage = $"Đã cập nhật môn học '{name.Trim()}'.";
@@ -172,12 +170,14 @@ public class SubjectsModel : AbpPageModel
 
     public async Task<IActionResult> OnPostAssignTeachersAsync(
         long subjectId,
-        List<Guid>? teacherIds = null,
+        [FromForm] List<Guid>? teacherIds = null,
         string? search = null,
         int currentPage = 1)
     {
         try
         {
+            // Nếu danh sách trống, gán thành List rỗng thay vì null
+            // để logic backend xóa tất cả giáo viên
             await _subjectAdminAppService.AssignTeachersAsync(subjectId, teacherIds ?? new List<Guid>());
             SuccessMessage = "Đã cập nhật danh sách giảng viên phụ trách môn học.";
         }
@@ -205,5 +205,37 @@ public class SubjectsModel : AbpPageModel
         }
 
         return RedirectToPage(new { search, currentPage });
+    }
+
+    public async Task<IActionResult> OnGetAvailableTeachersJsonAsync(
+        string? search = null,
+        int page = 1,
+        int pageSize = 10)
+    {
+        try
+        {
+            var (items, totalCount) = await _subjectAppService.GetAvailableTeachersPagedAsync(
+                search: search,
+                page: page,
+                pageSize: pageSize
+            );
+
+            return new JsonResult(new
+            {
+                success = true,
+                items = items,
+                totalCount = totalCount,
+                currentPage = page,
+                pageSize = pageSize
+            });
+        }
+        catch (Exception ex)
+        {
+            return new JsonResult(new
+            {
+                success = false,
+                message = ex.Message
+            }, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        }
     }
 }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -105,12 +105,15 @@ public class SubjectAdminAppService : LearningBffAppService
         subject.Description = input.Description?.Trim();
         subject.IsActive = input.IsActive;
 
-        // Cập nhật quan hệ giảng viên
-        subject.Teachers.Clear();
-        if (input.TeacherIds != null && input.TeacherIds.Any())
+        // Cập nhật quan hệ giảng viên nếu có truyền vào
+        if (input.TeacherIds != null)
         {
-            var teachers = await _userRepository.GetListAsync(u => input.TeacherIds.Contains(u.Id));
-            subject.Teachers.AddRange(teachers);
+            subject.Teachers.Clear();
+            if (input.TeacherIds.Any())
+            {
+                var teachers = await _userRepository.GetListAsync(u => input.TeacherIds.Contains(u.Id));
+                subject.Teachers.AddRange(teachers);
+            }
         }
 
         await _subjectRepository.UpdateAsync(subject, autoSave: true);
