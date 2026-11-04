@@ -112,30 +112,6 @@ public class SubjectsModel : AbpPageModel
         }
 
         Subjects = pagedResult.Items.ToList();
-        AvailableTeachers = await _subjectAppService.GetAvailableTeachersAsync();
-    }
-
-    public async Task<IActionResult> OnGetAvailableTeachersJsonAsync(
-        string? search = null,
-        int page = 1,
-        int pageSize = 6)
-    {
-        try
-        {
-            var (items, totalCount) = await _subjectAppService.GetAvailableTeachersPagedAsync(search, page, pageSize);
-            return new JsonResult(new
-            {
-                success = true,
-                items,
-                totalCount,
-                currentPage = page,
-                pageSize
-            });
-        }
-        catch (Exception ex)
-        {
-            return new JsonResult(new { success = false, message = ex.Message });
-        }
     }
 
     public async Task<IActionResult> OnPostCreateAsync(
