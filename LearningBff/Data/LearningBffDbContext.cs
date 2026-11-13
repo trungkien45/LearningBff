@@ -34,14 +34,18 @@ public class LearningBffDbContext :
     // App entities
     public DbSet<Answer> Answers { get; set; }
     public DbSet<Chapter> Chapters { get; set; }
+    public DbSet<Conversation> Conversations { get; set; }
+    public DbSet<ConversationParticipant> ConversationParticipants { get; set; }
+    public DbSet<EnrollmentSubject> EnrollmentSubjects { get; set; }
     public DbSet<Exam> Exams { get; set; }
     public DbSet<ExamQuestion> ExamQuestions { get; set; }
-    public DbSet<EnrollmentSubject> EnrollmentSubjects { get; set; }
     public DbSet<ExamResult> ExamResults { get; set; }
     public DbSet<ExamResultAnswer> ExamResultAnswers { get; set; }
     public DbSet<LearningProgress> LearningProgesses { get; set; }
     public DbSet<Lesson> Lessons { get; set; }
     public DbSet<LessonImage> LessonImages { get; set; }
+    public DbSet<Message> Messages { get; set; }
+    public DbSet<MessageAttachment> MessageAttachments { get; set; }
     public DbSet<Question> Questions { get; set; }
     public DbSet<Subject> Subjects { get; set; }
 
@@ -110,12 +114,53 @@ public class LearningBffDbContext :
             b.HasMany(x => x.Exams).WithOne(x => x.Chapter).HasForeignKey(x => x.ChapterId).OnDelete(DeleteBehavior.Cascade);
 
         });
+
+        builder.Entity<Conversation>(b =>
+        {
+            b.ToTable(DbTablePrefix + "Conversations", DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.Type).HasConversion<int>();
+            b.HasOne(x => x.Subject).WithMany().HasForeignKey(x => x.SubjectId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<ConversationParticipant>(b =>
+        {
+            b.ToTable(DbTablePrefix + "ConversationParticipants", DbSchema);
+            b.ConfigureByConvention();
+            b.HasIndex(x => new { x.UserId, x.ConversationId })
+                .IsUnique()
+                .HasFilter("\"IsDeleted\" = false");
+            b.HasOne(x => x.Conversation).WithMany().HasForeignKey(x => x.ConversationId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            b.Property(x => x.Role).HasConversion<int>();
+        });
+
+        builder.Entity<Message>(b =>
+        {
+            b.ToTable(DbTablePrefix + "Messages", DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.Content).IsRequired();
+            b.Property(x => x.MessageType).HasConversion<int>();
+            b.HasOne(x => x.Conversation).WithMany().HasForeignKey(x => x.ConversationId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.SenderId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<MessageAttachment>(b =>
+        {
+            b.ToTable(DbTablePrefix + "MessageAttachments", DbSchema);
+            b.ConfigureByConvention();
+            b.Property(x => x.FileUrl).IsRequired();
+            b.HasOne(x => x.Message).WithMany().HasForeignKey(x => x.MessageId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         builder.Entity<EnrollmentSubject>(b =>
         {
             b.ToTable(DbTablePrefix + "EnrollmentSubjects", DbSchema);
             b.ConfigureByConvention();
             b.Ignore(x => x.StudentId);
-            b.HasIndex(x => new { x.UserId, x.SubjectId }).IsUnique();
+            b.HasIndex(x => new { x.UserId, x.SubjectId })
+                .IsUnique()
+                .HasFilter("\"IsDeleted\" = false");
             b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(x => x.Subject).WithMany(x => x.EnrollmentSubjects).HasForeignKey(x => x.SubjectId).OnDelete(DeleteBehavior.Cascade);
         });
