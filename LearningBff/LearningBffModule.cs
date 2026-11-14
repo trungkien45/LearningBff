@@ -65,6 +65,8 @@ using Volo.Abp.Identity.EntityFrameworkCore;
 using Volo.Abp.FeatureManagement.EntityFrameworkCore;
 using Volo.Abp.EntityFrameworkCore.PostgreSql;
 using Volo.Abp.Studio.Client.AspNetCore;
+using Volo.Abp.AspNetCore.SignalR;
+using LearningBff.Hubs;
 
 using Microsoft.Extensions.Hosting;
 
@@ -82,6 +84,9 @@ namespace LearningBff;
 
     // lepton-theme
     typeof(AbpAspNetCoreMvcUiBasicThemeModule),
+
+    // SignalR
+    typeof(AbpAspNetCoreSignalRModule),
 
     // Account module packages
     typeof(AbpAccountWebOpenIddictModule),
@@ -483,7 +488,10 @@ public class LearningBffModule : AbpModule
                 httpContext.Response.Redirect(redirectUrl);
             }
         });
-        app.UseConfiguredEndpoints();
+        app.UseConfiguredEndpoints(endpoints =>
+        {
+            endpoints.MapHub<ChatHub>("/signalr-hubs/chat");
+        });
     }
 
     private static bool IsOversizedLessonContentForm(Exception exception, Microsoft.AspNetCore.Http.HttpRequest request)
