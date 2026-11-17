@@ -121,6 +121,8 @@ public class LearningBffDbContext :
             b.ConfigureByConvention();
             b.Property(x => x.Type).HasConversion<int>();
             b.HasOne(x => x.Subject).WithMany().HasForeignKey(x => x.SubjectId).OnDelete(DeleteBehavior.SetNull);
+            b.HasMany(x => x.Participants).WithOne(x => x.Conversation).HasForeignKey(x => x.ConversationId).OnDelete(DeleteBehavior.Cascade);
+            b.HasMany(x => x.Messages).WithOne(x => x.Conversation).HasForeignKey(x => x.ConversationId).OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<ConversationParticipant>(b =>
@@ -143,12 +145,14 @@ public class LearningBffDbContext :
             b.Property(x => x.MessageType).HasConversion<int>();
             b.HasOne(x => x.Conversation).WithMany().HasForeignKey(x => x.ConversationId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.SenderId).OnDelete(DeleteBehavior.Cascade);
+            b.HasMany(x => x.Attachments).WithOne(x => x.Message).HasForeignKey(x => x.MessageId).OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<MessageAttachment>(b =>
         {
             b.ToTable(DbTablePrefix + "MessageAttachments", DbSchema);
             b.ConfigureByConvention();
+            b.Property(x => x.BlobName).IsRequired().HasMaxLength(256);
             b.Property(x => x.FileUrl).IsRequired();
             b.HasOne(x => x.Message).WithMany().HasForeignKey(x => x.MessageId).OnDelete(DeleteBehavior.Cascade);
         });

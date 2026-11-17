@@ -9,5 +9,7 @@ public class Conversation : FullAuditedAggregateRoot<long>
     public string Title { get; set; } = string.Empty;
     public TypeConversation Type { get; set; } = TypeConversation.Group;
     public string? AvatarUrl { get; set; }
+    public ICollection<ConversationParticipant> Participants { get; set; } = [];
+    public ICollection<Message> Messages { get; set; } = [];
 }
 

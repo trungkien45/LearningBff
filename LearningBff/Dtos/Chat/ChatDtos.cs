@@ -84,13 +84,13 @@ public class SendMessageInput
     public MessageType MessageType { get; set; } = MessageType.Text;
     public long? ReplyToMessageId { get; set; }
     public List<CreateMessageAttachmentInput>? Attachments { get; set; }
+    public List<IFormFile>? Files { get; set; }
 }
 
 public class CreateMessageAttachmentInput
 {
-    public string FileUrl { get; set; } = string.Empty;
-    public string FileType { get; set; } = string.Empty;
+    public string? FileUrl { get; set; }
     public string FileName { get; set; } = string.Empty;
-    public long FileSize { get; set; }
-    public string ContentType { get; set; } = string.Empty;
+    public string? ContentType { get; set; }
+    public byte[]? FileBytes { get; set; }
 }

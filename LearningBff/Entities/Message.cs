@@ -12,5 +12,6 @@ public class Message : FullAuditedAggregateRoot<long>
     public string Content { get; set; } = string.Empty;
     public MessageType MessageType { get; set; }
     public long? ReplyToMessageId { get; set; }
+    public ICollection<MessageAttachment> Attachments { get; set; } = [];
 }
 

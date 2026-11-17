@@ -18,6 +18,7 @@ public class MessageAppService : LearningBffAppService
     private readonly IRepository<Message, long> _messageRepository;
     private readonly IRepository<MessageAttachment, long> _attachmentRepository;
     private readonly IRepository<IdentityUser, Guid> _userRepository;
+    private readonly IChatAttachmentStorageService _storageService;
     private readonly IHubContext<ChatHub> _chatHubContext;
 
     public MessageAppService(
@@ -26,6 +27,7 @@ public class MessageAppService : LearningBffAppService
         IRepository<Message, long> messageRepository,
         IRepository<MessageAttachment, long> attachmentRepository,
         IRepository<IdentityUser, Guid> userRepository,
+        IChatAttachmentStorageService storageService,
         IHubContext<ChatHub> chatHubContext)
     {
         _conversationRepository = conversationRepository;
@@ -33,6 +35,7 @@ public class MessageAppService : LearningBffAppService
         _messageRepository = messageRepository;
         _attachmentRepository = attachmentRepository;
         _userRepository = userRepository;
+        _storageService = storageService;
         _chatHubContext = chatHubContext;
     }
 
@@ -47,8 +50,9 @@ public class MessageAppService : LearningBffAppService
 
         // 1. Validate nội dung tin nhắn và file đính kèm
         var hasContent = !string.IsNullOrWhiteSpace(input.Content);
-        var hasAttachments = input.Attachments != null && input.Attachments.Count > 0;
-        if (!hasContent && !hasAttachments)
+        var hasFiles = input.Files != null && input.Files.Count > 0;
+        var hasBase64Attachments = input.Attachments != null && input.Attachments.Count > 0;
+        if (!hasContent && !hasFiles && !hasBase64Attachments)
         {
             throw new UserFriendlyException("Nội dung tin nhắn hoặc tệp đính kèm không được để trống.");
         }
@@ -68,23 +72,69 @@ public class MessageAppService : LearningBffAppService
 
         await _messageRepository.InsertAsync(message, autoSave: true);
 
-        // 4. Lưu danh sách tệp đính kèm (nếu có)
+        // 4. Lưu danh sách tệp đính kèm ra bộ nhớ cục bộ
         var attachmentDtos = new List<MessageAttachmentDto>();
-        if (hasAttachments)
+        var attachmentsToInsert = new List<MessageAttachment>();
+
+        // 4a. Xử lý lưu IFormFile (Multipart Form Data)
+        if (hasFiles)
         {
-            var attachments = input.Attachments!.Select(a => new MessageAttachment
+            foreach (var file in input.Files!)
             {
-                MessageId = message.Id,
-                FileUrl = a.FileUrl,
-                FileType = a.FileType,
-                FileName = a.FileName,
-                FileSize = a.FileSize,
-                ContentType = a.ContentType
-            }).ToList();
+                if (file.Length == 0) continue;
 
-            await _attachmentRepository.InsertManyAsync(attachments, autoSave: true);
+                using var stream = file.OpenReadStream();
+                var blobName = await _storageService.SaveAttachmentAsync(stream, file.FileName);
+                var ext = Path.GetExtension(file.FileName)?.ToLowerInvariant() ?? string.Empty;
 
-            attachmentDtos = attachments.Select(a => new MessageAttachmentDto
+                attachmentsToInsert.Add(new MessageAttachment
+                {
+                    MessageId = message.Id,
+                    BlobName = blobName,
+                    FileType = ext,
+                    FileName = file.FileName,
+                    FileSize = file.Length,
+                    ContentType = file.ContentType ?? "application/octet-stream"
+                });
+            }
+        }
+
+        // 4b. Xử lý lưu FileBytes (nếu gửi dạng byte[] / base64 trong JSON)
+        if (hasBase64Attachments)
+        {
+            foreach (var item in input.Attachments!)
+            {
+                if (item.FileBytes != null && item.FileBytes.Length > 0)
+                {
+                    using var stream = new MemoryStream(item.FileBytes);
+                    var blobName = await _storageService.SaveAttachmentAsync(stream, item.FileName);
+                    var ext = Path.GetExtension(item.FileName)?.ToLowerInvariant() ?? string.Empty;
+
+                    attachmentsToInsert.Add(new MessageAttachment
+                    {
+                        MessageId = message.Id,
+                        BlobName = blobName,
+                        FileType = ext,
+                        FileName = item.FileName,
+                        FileSize = item.FileBytes.Length,
+                        ContentType = item.ContentType ?? "application/octet-stream"
+                    });
+                }
+            }
+        }
+
+        if (attachmentsToInsert.Count > 0)
+        {
+            await _attachmentRepository.InsertManyAsync(attachmentsToInsert, autoSave: true);
+
+            // Cập nhật FileUrl theo AttachmentId bảo mật: /api/chat/attachments/{id}
+            foreach (var a in attachmentsToInsert)
+            {
+                a.FileUrl = $"/api/chat/attachments/{a.Id}";
+            }
+            await _attachmentRepository.UpdateManyAsync(attachmentsToInsert, autoSave: true);
+
+            attachmentDtos = attachmentsToInsert.Select(a => new MessageAttachmentDto
             {
                 Id = a.Id,
                 MessageId = a.MessageId,
@@ -216,7 +266,7 @@ public class MessageAppService : LearningBffAppService
                 {
                     ConversationId = newConv.Id,
                     UserId = currentUserId,
-                    Role = Role.Student, // Mặc định role cơ bản
+                    Role = Role.Student,
                     JoinedAt = DateTime.UtcNow
                 },
                 new()
