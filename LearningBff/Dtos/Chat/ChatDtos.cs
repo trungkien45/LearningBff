@@ -56,6 +56,13 @@ public class MessageAttachmentDto : EntityDto<long>
     public string ContentType { get; set; } = string.Empty;
 }
 
+public class CreateGroupConversationInput
+{
+    public string Title { get; set; } = string.Empty;
+    public string? AvatarUrl { get; set; }
+    public List<Guid> MemberIds { get; set; } = new();
+}
+
 public class GetConversationsInput : PagedAndSortedResultRequestDto
 {
     public string? Filter { get; set; }
@@ -70,7 +77,9 @@ public class GetMessagesInput : PagedResultRequestDto
 
 public class SendMessageInput
 {
-    public long ConversationId { get; set; }
+    public long? ConversationId { get; set; }
+    public Guid? TargetUserId { get; set; }
+    public long? SubjectId { get; set; }
     public string Content { get; set; } = string.Empty;
     public MessageType MessageType { get; set; } = MessageType.Text;
     public long? ReplyToMessageId { get; set; }

@@ -15,7 +15,7 @@ public class ConversationAppService : LearningBffAppService
         throw new NotImplementedException();
     }
 
-    public Task<ConversationDto> GetOrCreatePrivateConversationAsync(Guid targetUserId)
+    public Task<ConversationDto> CreateGroupConversationAsync(CreateGroupConversationInput input)
     {
         throw new NotImplementedException();
     }
