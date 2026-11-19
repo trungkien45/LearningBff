@@ -17,17 +17,23 @@ public class SubjectAdminAppService : LearningBffAppService
 {
     private readonly IRepository<Subject, long> _subjectRepository;
     private readonly IRepository<IdentityUser, Guid> _userRepository;
+    private readonly IRepository<ConversationParticipant, long> _conversationParticipantRepository;
+    private readonly IRepository<Conversation, long> _conversationRepository;
     private readonly SubjectAppService _subjectAppService;
     private readonly Services.LessonImages.ILessonImageAppService _lessonImageAppService;
 
     public SubjectAdminAppService(
         IRepository<Subject, long> subjectRepository,
         IRepository<IdentityUser, Guid> userRepository,
+        IRepository<ConversationParticipant, long> conversationParticipantRepository,
+        IRepository<Conversation, long> conversationRepository,
         SubjectAppService subjectAppService,
         Services.LessonImages.ILessonImageAppService lessonImageAppService)
     {
         _subjectRepository = subjectRepository;
         _userRepository = userRepository;
+        _conversationParticipantRepository = conversationParticipantRepository;
+        _conversationRepository = conversationRepository;
         _subjectAppService = subjectAppService;
         _lessonImageAppService = lessonImageAppService;
     }
@@ -108,12 +114,16 @@ public class SubjectAdminAppService : LearningBffAppService
         // Cập nhật quan hệ giảng viên nếu có truyền vào
         if (input.TeacherIds != null)
         {
+            var previousTeacherIds = subject.Teachers.Select(t => t.Id).ToHashSet();
             subject.Teachers.Clear();
+            var teachers = new List<IdentityUser>();
             if (input.TeacherIds.Any())
             {
-                var teachers = await _userRepository.GetListAsync(u => input.TeacherIds.Contains(u.Id));
+                teachers = await _userRepository.GetListAsync(u => input.TeacherIds.Contains(u.Id));
                 subject.Teachers.AddRange(teachers);
             }
+
+            await SyncSubjectConversationTeachersAsync(subject.Id, previousTeacherIds, teachers.Select(t => t.Id).ToHashSet());
         }
 
         await _subjectRepository.UpdateAsync(subject, autoSave: true);
@@ -130,14 +140,59 @@ public class SubjectAdminAppService : LearningBffAppService
             .FirstOrDefaultAsync(s => s.Id == subjectId)
             ?? throw new UserFriendlyException($"Không tìm thấy môn học với mã {subjectId}.");
 
+        var previousTeacherIds = subject.Teachers.Select(t => t.Id).ToHashSet();
+        var teachers = new List<IdentityUser>();
         subject.Teachers.Clear();
         if (teacherIds != null && teacherIds.Any())
         {
-            var teachers = await _userRepository.GetListAsync(u => teacherIds.Contains(u.Id));
+            teachers = await _userRepository.GetListAsync(u => teacherIds.Contains(u.Id));
             subject.Teachers.AddRange(teachers);
         }
 
         await _subjectRepository.UpdateAsync(subject, autoSave: true);
+        await SyncSubjectConversationTeachersAsync(subject.Id, previousTeacherIds, teachers.Select(t => t.Id).ToHashSet());
+    }
+
+    private async Task SyncSubjectConversationTeachersAsync(long subjectId, HashSet<Guid> previousTeacherIds, HashSet<Guid> currentTeacherIds)
+    {
+        var conversation = await (await _conversationRepository.GetQueryableAsync())
+            .Where(c => c.SubjectId == subjectId && c.Type == TypeConversation.Group)
+            .FirstOrDefaultAsync();
+        if (conversation == null)
+        {
+            return;
+        }
+
+        var participants = await _conversationParticipantRepository.GetListAsync(p => p.ConversationId == conversation.Id);
+        var now = DateTime.UtcNow;
+
+        foreach (var participant in participants.Where(p => previousTeacherIds.Contains(p.UserId) && !currentTeacherIds.Contains(p.UserId) && p.LeftAt == null))
+        {
+            participant.LeftAt = now;
+            await _conversationParticipantRepository.UpdateAsync(participant);
+        }
+
+        foreach (var teacherId in currentTeacherIds.Except(previousTeacherIds))
+        {
+            var participant = participants.FirstOrDefault(p => p.UserId == teacherId);
+            if (participant == null)
+            {
+                await _conversationParticipantRepository.InsertAsync(new ConversationParticipant
+                {
+                    ConversationId = conversation.Id,
+                    UserId = teacherId,
+                    Role = Role.Teacher,
+                    JoinedAt = now
+                });
+            }
+            else
+            {
+                participant.Role = Role.Teacher;
+                participant.JoinedAt = now;
+                participant.LeftAt = null;
+                await _conversationParticipantRepository.UpdateAsync(participant);
+            }
+        }
     }
 
     /// <summary>

@@ -52,12 +52,13 @@ public enum TypeConversation
 }
 public enum Role
 {
-    Student = 1,
+    User = 1,
     Teacher = 2,
     Admin = 3
 }
 public enum MessageType
 {
     Text = 1,
-    System = 2
+    System = 2,
+    Recall = 3
 }

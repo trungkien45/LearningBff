@@ -39,9 +39,28 @@ public class MessageAppService : LearningBffAppService
         _chatHubContext = chatHubContext;
     }
 
-    public Task<PagedResultDto<MessageDto>> GetMessagesAsync(GetMessagesInput input)
+    public async Task<PagedResultDto<MessageDto>> GetMessagesAsync(GetMessagesInput input)
     {
-        throw new NotImplementedException();
+        var currentUserId = CurrentUser.GetId();
+        var messages = await _messageRepository.GetQueryableAsync();
+        var participants = await _participantRepository.GetQueryableAsync();
+        var conversationMessages = messages.Where(m => m.ConversationId == input.ConversationId &&
+            participants.Any(p => p.ConversationId == m.ConversationId && p.UserId == currentUserId && p.LeftAt == null));
+        var totalCount = await conversationMessages.CountAsync();
+        var query = conversationMessages.OrderByDescending(m => m.CreationTime).Select(m => new MessageDto
+                    {
+                        Id = m.Id,
+                        ConversationId = m.ConversationId,
+                        SenderId = m.SenderId,
+                        SenderUserName = m.User!.UserName,
+                        SenderFullName = $"{m.User.Surname} {m.User.Name}".Trim(),
+                        Content = m.Content,
+                        MessageType = m.MessageType,
+                        ReplyToMessageId = m.ReplyToMessageId,
+                        CreationTime = m.CreationTime
+                    });
+        var pagedMessages = await query.Skip(input.SkipCount).Take(input.MaxResultCount).ToListAsync();
+        return new PagedResultDto<MessageDto>(totalCount, pagedMessages);
     }
 
     public async Task<MessageDto> SendMessageAsync(SendMessageInput input)
@@ -266,14 +285,14 @@ public class MessageAppService : LearningBffAppService
                 {
                     ConversationId = newConv.Id,
                     UserId = currentUserId,
-                    Role = Role.Student,
+                    Role = Role.User,
                     JoinedAt = DateTime.UtcNow
                 },
                 new()
                 {
                     ConversationId = newConv.Id,
                     UserId = targetUserId,
-                    Role = Role.Student,
+                    Role = Role.User,
                     JoinedAt = DateTime.UtcNow
                 }
             };
@@ -285,13 +304,45 @@ public class MessageAppService : LearningBffAppService
         throw new UserFriendlyException("Vui lòng cung cấp ConversationId hoặc TargetUserId để gửi tin nhắn.");
     }
 
-    public Task MarkAsReadAsync(long conversationId, long lastReadMessageId)
+    public async Task MarkAsReadAsync(long conversationId, long lastReadMessageId)
     {
-        throw new NotImplementedException();
+        var currentUserId = CurrentUser.GetId();
+        var conversationParticipant = await _participantRepository.FirstOrDefaultAsync(p => p.ConversationId == conversationId && p.UserId == currentUserId);
+        if (conversationParticipant == null || conversationParticipant.LeftAt != null)
+        {
+            throw new UserFriendlyException("Bạn không phải thành viên của cuộc trò chuyện này.");
+        }
+        var message = await _messageRepository.FirstOrDefaultAsync(m => m.Id == lastReadMessageId && m.ConversationId == conversationId);
+        if (message == null)
+        {
+            throw new UserFriendlyException("Tin nhắn không tồn tại trong cuộc trò chuyện này.");
+        }
+        var lastReadMessage = await _messageRepository.FirstOrDefaultAsync(m => m.Id == conversationParticipant.LastReadMessageId && m.ConversationId == conversationId);
+        if (lastReadMessage != null && lastReadMessage.CreationTime >= message.CreationTime)
+        {
+            return; // Không cần cập nhật nếu tin nhắn đã đọc mới hơn hoặc bằng
+        }
+        conversationParticipant.LastReadMessageId = lastReadMessageId;
+        await _participantRepository.UpdateAsync(conversationParticipant, autoSave: true);
     }
 
-    public Task RecallMessageAsync(long messageId)
+    public async Task RecallMessageAsync(long messageId)
     {
-        throw new NotImplementedException();
+        if (messageId <= 0)
+        {
+            throw new UserFriendlyException("Mã tin nhắn không hợp lệ.");
+        }
+        var currentUserId = CurrentUser.GetId();
+        var message = await _messageRepository.FirstOrDefaultAsync(m => m.Id == messageId && m.SenderId == currentUserId);
+        if (message == null)
+        {
+            throw new UserFriendlyException("Tin nhắn không tồn tại hoặc không phải do bạn gửi.");
+        }
+        if (message.CreationTime.AddMinutes(5) < DateTime.UtcNow)
+        {
+            throw new UserFriendlyException("Chỉ có thể thu hồi tin nhắn trong vòng 5 phút kể từ khi gửi.");
+        }
+        message.MessageType = MessageType.Recall;
+        await _messageRepository.UpdateAsync(message, autoSave: true);
     }
 }
