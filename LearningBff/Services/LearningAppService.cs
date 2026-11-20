@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using LearningBff.Entities;
 using LearningBff.Dtos;
+using LearningBff.Hubs;
 using Volo.Abp;
 using Volo.Abp.Domain.Repositories;
 using Volo.Abp.Users;
@@ -20,6 +22,9 @@ public class LearningAppService : LearningBffAppService
     private readonly IRepository<LearningProgress, long> _learningProgressRepository;
     private readonly IRepository<Lesson, long> _lessonRepository;
     private readonly IRepository<Chapter, long> _chapterRepository;
+    private readonly IRepository<Conversation, long> _conversationRepository;
+    private readonly IRepository<ConversationParticipant, long> _conversationParticipantRepository;
+    private readonly IHubContext<ChatHub> _chatHubContext;
     private readonly ICurrentUser _currentUser;
 
     public LearningAppService(
@@ -28,6 +33,9 @@ public class LearningAppService : LearningBffAppService
         IRepository<LearningProgress, long> learningProgressRepository,
         IRepository<Lesson, long> lessonRepository,
         IRepository<Chapter, long> chapterRepository,
+        IRepository<Conversation, long> conversationRepository,
+        IRepository<ConversationParticipant, long> conversationParticipantRepository,
+        IHubContext<ChatHub> chatHubContext,
         ICurrentUser currentUser)
     {
         _enrollmentSubjectRepository = enrollmentSubjectRepository;
@@ -35,6 +43,9 @@ public class LearningAppService : LearningBffAppService
         _learningProgressRepository = learningProgressRepository;
         _lessonRepository = lessonRepository;
         _chapterRepository = chapterRepository;
+        _conversationRepository = conversationRepository;
+        _conversationParticipantRepository = conversationParticipantRepository;
+        _chatHubContext = chatHubContext;
         _currentUser = currentUser;
     }
 
@@ -591,6 +602,41 @@ public class LearningAppService : LearningBffAppService
                 RegisteredAt = DateTime.UtcNow
             }, autoSave: true);
         }
+
+        // Tự động thêm học viên vào nhóm chat môn học (nếu nhóm chat đã tồn tại)
+        var conversation = await _conversationRepository.FirstOrDefaultAsync(c =>
+            c.SubjectId == subjectId && c.Type == TypeConversation.Group);
+
+        if (conversation != null)
+        {
+            var participant = await _conversationParticipantRepository.FirstOrDefaultAsync(p =>
+                p.ConversationId == conversation.Id && p.UserId == userId);
+
+            if (participant == null)
+            {
+                await _conversationParticipantRepository.InsertAsync(new ConversationParticipant
+                {
+                    ConversationId = conversation.Id,
+                    UserId = userId,
+                    Role = Role.User,
+                    JoinedAt = DateTime.UtcNow
+                }, autoSave: true);
+            }
+            else if (participant.LeftAt != null)
+            {
+                participant.LeftAt = null;
+                participant.JoinedAt = DateTime.UtcNow;
+                await _conversationParticipantRepository.UpdateAsync(participant, autoSave: true);
+            }
+
+            // Bắn SignalR broadcast thông báo thành viên mới tham gia nhóm
+            await _chatHubContext.Clients.Group($"conversation-{conversation.Id}").SendAsync("UserJoinedConversation", new
+            {
+                ConversationId = conversation.Id,
+                UserId = userId,
+                UserName = _currentUser.UserName
+            });
+        }
     }
 
     /// <summary>
@@ -624,5 +670,29 @@ public class LearningAppService : LearningBffAppService
         enrollment.IsActive = false;
         enrollment.UnregisteredAt = DateTime.UtcNow;
         await _enrollmentSubjectRepository.UpdateAsync(enrollment, autoSave: true);
+
+        // Tự động cho học viên rời khỏi nhóm chat môn học
+        var conversation = await _conversationRepository.FirstOrDefaultAsync(c =>
+            c.SubjectId == subjectId && c.Type == TypeConversation.Group);
+
+        if (conversation != null)
+        {
+            var participant = await _conversationParticipantRepository.FirstOrDefaultAsync(p =>
+                p.ConversationId == conversation.Id && p.UserId == userId && p.LeftAt == null);
+
+            if (participant != null)
+            {
+                participant.LeftAt = DateTime.UtcNow;
+                await _conversationParticipantRepository.UpdateAsync(participant, autoSave: true);
+
+                // Bắn SignalR broadcast thông báo thành viên đã rời nhóm
+                await _chatHubContext.Clients.Group($"conversation-{conversation.Id}").SendAsync("UserLeftConversation", new
+                {
+                    ConversationId = conversation.Id,
+                    UserId = userId,
+                    UserName = _currentUser.UserName
+                });
+            }
+        }
     }
 }
